@@ -12,7 +12,7 @@ __authors__ = [u"Baboucarr Katim Touray"]
 __doc__ = u"""Auto Dimension for Structural Elements.
 
 Pick a category (Column, Beam, Footing, or Slab), then a dimension style
-and mode, and Run.
+and mode. Optionally apply the same settings across several views at once.
 """
 
 from Autodesk.Revit.DB import ViewPlan

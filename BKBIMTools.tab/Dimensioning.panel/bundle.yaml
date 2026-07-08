@@ -1,16 +1,22 @@
 # Dimensioning panel: Smart Dimension (a picker/launcher for every tool below,
 # with a discipline-detection hint), Grid Dimensions (grid-to-grid), Wall &
-# Openings (wall-run), Structural Dimensions (columns/footings/beams/slabs -
-# picking Slab from its category picker gives the same two-mode window Slab
-# Dimensions always used). Split out of the original catch-all "Documentation"
-# panel (2026-07-06) so tools are grouped by function, matching pyRevit's own
-# ribbon convention. The original "Auto Dimension" (box-select, element-to-
-# grid) was retired and replaced by Smart Dimension the same day (2026-07-06).
-# The standalone SlabDimension.pushbutton was removed the same day too -
-# product owner: "since its already in the structural dimension push button,
-# having its own pushbutton is seems useless."
+# Openings (wall-run, with optional auto-detected/picked exterior treatment),
+# Exterior Wall Dimension (2026-07-08 - a small standalone shortcut for just
+# the 3-string exterior perimeter treatment on whichever walls you manually
+# pick, no options/auto-detect overhead - "give me a small push button...
+# so that i can manually select walls if i wish to"), Structural Dimensions
+# (columns/footings/beams/slabs - picking Slab from its category picker
+# gives the same two-mode window Slab Dimensions always used). Split out of
+# the original catch-all "Documentation" panel (2026-07-06) so tools are
+# grouped by function, matching pyRevit's own ribbon convention. The
+# original "Auto Dimension" (box-select, element-to-grid) was retired and
+# replaced by Smart Dimension the same day (2026-07-06). The standalone
+# SlabDimension.pushbutton was removed the same day too - product owner:
+# "since its already in the structural dimension push button, having its
+# own pushbutton is seems useless."
 layout:
   - SmartDimension
   - AutoGridDimension
   - AutoWallOpeningDimension
+  - ExteriorWallDimension
   - AutoStructuralDimension

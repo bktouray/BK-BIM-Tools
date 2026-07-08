@@ -4,6 +4,121 @@ All notable changes to BK BIM Tools are recorded here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer per module and
 per suite (SAD §5 versioning).
 
+## Auto-Detect gets multi-view too; a separate style for exterior perimeter strings
+
+Product owner tried Smart Dimension's Auto-Detect expecting the same
+multi-view prompt Walls/Grids/Structural had just gotten, and it didn't
+show up - Auto-Detect had been deliberately left single-view as a scope
+boundary, which turned out not to match what was wanted. Separately: "one
+more option that would be nice is to be able to select a specific
+dimension style for exterior walls if i choose it."
+
+### Added
+- `SmartDimension.pushbutton`'s Auto-Detect now calls `pick_target_views`
+  once up front, then threads that same view list into the grids/walls/
+  columns sub-flows it triggers - matches every other Smart Dimension
+  option instead of being the one exception.
+- `wall_selection_prompt.pick_exterior_walls` now also asks for a
+  dimension style for the 2 EXTRA exterior perimeter strings (the
+  perpendicular-wall chain + overall) - the normal wall-run string always
+  keeps whichever style was chosen in the main options window. Asked only
+  once exterior treatment is actually confirmed (auto-detect found
+  something, or manual picking yielded a selection), never when skipping
+  exterior walls entirely. `DimensionWriter` gained an
+  `exterior_perimeter_dimension_type` param, keyed off
+  `DimensionPlan.kind`, to apply it.
+
+## Multi-view batching extended to Grid, Structural, and Slab Dimensions
+
+Product owner: "for doing similar dimensions in other views, do it for
+every dimension in that view... every dimension option i did like grids,
+columns and others let it do the same for every view... put the select
+view option first then do the dimensioning but make sure all the
+dimension options i do apply to the selected views."
+
+### Added
+- New `lib/bkbim/revit/adapter/multi_view_batch.py` - shared
+  `run_across_views`/`alert_batch_results` helper (TransactionGroup for
+  >1 view, one combined summary alert), extracted once a 3rd flow needed
+  the exact shape `wall_dimension_flow.py` introduced earlier today.
+  `wall_dimension_flow.py` itself was retrofitted to use it too.
+- New `lib/bkbim/revit/adapter/grid_dimension_flow.py` - Grid Dimensions
+  gets the same "pick view(s) first, one options window, apply to every
+  view" treatment as Wall & Openings. Also fixes the same duplication
+  Walls had: `AutoGridDimension.pushbutton` and Smart Dimension's Grid
+  Dimensions path were near-identical copies (even using two different
+  Transaction name strings) - both now delegate to this one flow.
+- `structural_dimension_flow.py` (Structural Elements: Column/Beam/
+  Footing, and Slab Dimensions in both modes) restructured the same way -
+  it was already a single shared flow with 3 call sites, so
+  `AutoStructuralDimension.pushbutton` and Smart Dimension's Structural/
+  Slab paths needed zero changes; only the flow's internals gained
+  view-plural handling.
+- Smart Dimension's Auto-Detect mode is explicitly kept single-view (it
+  scans one view for everything at once, a different concept from
+  "run one dimension type across several similar views") - each
+  flow function gained an optional `target_views` override so
+  Auto-Detect can force "just this view" without a "pick views?" prompt
+  popping up 3 times in one run.
+
+## New: Exterior Wall Dimension pushbutton (manual-pick shortcut)
+
+Product owner: "give me a small push button for exterior wall dimension (3
+string) so that i can manually select walls if i wish to."
+
+### Added
+- New `ExteriorWallDimension.pushbutton` under Dimensioning panel - a small
+  standalone tool: pick a dimension style + offset/gap (a trimmed options
+  window, `ExteriorWallDimensionOptions.xaml`, with no wall-type list since
+  there's nothing to filter), then click exactly the walls you want, and
+  every one gets the full 3-string exterior perimeter treatment. No
+  auto-detect/skip choice - this button always means "pick manually," unlike
+  Wall & Openings' 3-way prompt.
+- Extracted `wall_selection_prompt.pick_walls_manually()` (the alert +
+  `PickObjects` block) out of `pick_exterior_walls` so both this button and
+  the existing 3-way picker share the same manual-pick code.
+
+## Auto-detect exterior walls; run Wall & Openings across multiple views
+
+Product owner: "is it possible to just autodetect the building boundary, or
+do I have to differentiate exterior and interior walls?" and, separately,
+"I sometimes have different views with a similar drawing, I want an option
+where I can select the views I want to apply similar dimension styles."
+
+### Added - exterior wall auto-detection
+- New `exterior_wall_classifier.py` (pure domain) and
+  `exterior_wall_detector.py` (adapter): auto-detects exterior walls without
+  picking. Revit's own `Wall.Function` is unreliable in this project's
+  models (every wall reports "Interior"), so detection is geometric -
+  Room-adjacency (a wall bounded by a Room on both sides is interior) when
+  Rooms are placed in the view, falling back to a flood-fill of the wall
+  network (rasterize to a grid, flood-fill from the border, a wall is
+  exterior if either side is reachable from outside) when there are none.
+  A plain ray-cast point-in-polygon test was tried first and is wrong for
+  any building with interior partitions - each partition corrupts the
+  inside/outside parity for every point past it. Caught via a unit test
+  before shipping; flood-fill doesn't have that failure mode.
+- `wall_selection_prompt.pick_exterior_walls` is now a 3-way choice:
+  Auto-detect / Pick manually / Skip. Auto-detect finding nothing offers one
+  fallback prompt to switch to manual picking instead of silently
+  dimensioning nothing.
+
+### Added - multi-view batch dimensioning
+- New `view_selection_prompt.pick_target_views` and
+  `wall_dimension_flow.run_wall_dimension_flow`: Wall & Openings can now run
+  across several selected views in one pass, with one options window
+  (dimension style, wall types, offsets, exterior-wall mode) applied
+  identically to every view. Manual exterior-wall picking only works in
+  Revit's active view, so batch runs use Auto-detect/Skip only; single-view
+  runs keep all three choices. The whole batch undoes as one step
+  (`TransactionGroup`), but one view's failure doesn't roll back the others
+  (each view gets its own child `Transaction`), and results are reported in
+  one combined summary alert instead of one popup per view.
+- `wall_dimension_flow.py` also folds the near-duplicate bodies that
+  `AutoWallOpeningDimension.pushbutton` and `SmartDimension`'s Walls &
+  Openings path carried independently into one shared flow, mirroring
+  `structural_dimension_flow.py`'s existing pattern.
+
 ## Visible exterior-wall prompt with a real Yes/No choice; simplified tooltips; fixed author attribution
 
 Product owner: "for the selection of walls, make it a visible prompt, it is

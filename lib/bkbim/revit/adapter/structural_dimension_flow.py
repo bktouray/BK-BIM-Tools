@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Runs the full Structural Elements / Slab dimensioning flow (collect elements
-for ONE category -> options window -> run command -> transaction) - shared by
-AutoStructuralDimension.pushbutton and SmartDimension.pushbutton so both stay
-in sync (2026-07-06: product owner found the mixed column/beam/footing type
-list confusing - "I don't know what's what" - fixed by picking ONE category
-first via `forms.CommandSwitchWindow`, so this flow only ever shows types from
-that one category. Also folds in Slab Dimensions as a 4th category, per
-product owner: "maybe even add the slab dimensions there").
+"""Runs the full Structural Elements / Slab dimensioning flow (pick view(s)
+-> collect elements for ONE category across them -> options window -> one
+Transaction per view) - shared by AutoStructuralDimension.pushbutton and
+SmartDimension.pushbutton so both stay in sync (2026-07-06: product owner
+found the mixed column/beam/footing type list confusing - "I don't know
+what's what" - fixed by picking ONE category first via
+`forms.CommandSwitchWindow`, so this flow only ever shows types from that
+one category. Also folds in Slab Dimensions as a 4th category, per product
+owner: "maybe even add the slab dimensions there").
 
 Slab is the one category that does NOT reuse `show_structural_dimension_options`
 - it has its own MODE_GRID_ONLY/MODE_OVERALL_ONLY two-mode window
@@ -19,14 +20,30 @@ removed the same day as redundant ("having its own pushbutton is seems
 useless" once it's already one click inside Structural Element Dimensions).
 
 MODE_OVERALL_ONLY ("All edges of the slab") got its own SEPARATE pipeline
-(`_run_slab_outline` / `auto_slab_outline_dimension_command`) on 2026-07-07,
-after a screenshot of a real notched/stepped footprint made clear the
-bounding-box approximation was wrong for anything non-rectangular: "I want
-dimensions to follow every slab face." It reads each slab's REAL boundary
-edges (not just 4 bounding-box faces) and never needs grids at all, unlike
-every other path through this flow - `_run_command`/
+(`_run_slab_outline_one_view` / `auto_slab_outline_dimension_command`) on
+2026-07-07, after a screenshot of a real notched/stepped footprint made
+clear the bounding-box approximation was wrong for anything non-rectangular:
+"I want dimensions to follow every slab face." It reads each slab's REAL
+boundary edges (not just 4 bounding-box faces) and never needs grids at
+all, unlike every other path through this flow - `_run_command_one_view`/
 `auto_structural_dimension_command` stays exactly as-is for Column/Beam/
 Footing and Slab's MODE_GRID_ONLY.
+
+Multi-view batching (product owner, 2026-07-08: "every dimension option i
+did like grids, columns and others let it do the same for every view...
+put the select view option first") reuses ONE options window (and, for
+Column/Beam/Footing/Slab-grid-mode, ONE unioned type list) across every
+selected view, then runs each view through multi_view_batch.run_across_views
+- same shared TransactionGroup/per-view-Transaction/combined-alert shape
+`wall_dimension_flow.py` and `grid_dimension_flow.py` already use. No
+interactive/manual picking exists anywhere in this flow (category/type
+selection is always checkboxes, never PickObjects), so - unlike walls -
+there's no active-view-only constraint to work around.
+
+`target_views` is an optional pre-resolved override (skips the "pick
+view(s)" prompt entirely), so SmartDimension's Auto-Detect mode can force
+the Column path to stay on the single current view instead of adding its
+own "pick views?" prompt on top of Auto-Detect's own scan.
 """
 
 import clr
@@ -43,6 +60,7 @@ from bkbim.revit.adapter.dimension_writer import DimensionWriter
 from bkbim.revit.adapter.element_naming import type_name
 from bkbim.revit.adapter.existing_dimension_checker import RevitExistingDimensionChecker
 from bkbim.revit.adapter.failure_policy import ScopedFailurePolicy
+from bkbim.revit.adapter.multi_view_batch import alert_batch_results, run_across_views
 from bkbim.revit.adapter.reference_provider import RevitReferenceProvider
 from bkbim.revit.adapter.selection_reader import RevitSelectionReader
 from bkbim.revit.adapter.slab_type_reader import list_slab_elements_in_view, list_slab_types_in_view
@@ -54,6 +72,7 @@ from bkbim.revit.adapter.structural_type_reader import (
     list_structural_elements_by_category,
     types_from_elements,
 )
+from bkbim.revit.adapter.view_selection_prompt import pick_target_views
 from bkbim.ui.views.category_picker import show_category_picker
 from bkbim.ui.views.slab_dimension_options import show_slab_dimension_options
 from bkbim.ui.views.structural_category_icons import structural_category_icon
@@ -61,6 +80,9 @@ from bkbim.ui.views.structural_dimension_options import show_structural_dimensio
 
 CATEGORY_SLAB = u"Slab"
 CATEGORIES = [CATEGORY_COLUMN, CATEGORY_BEAM, CATEGORY_FOOTING, CATEGORY_SLAB]
+
+_TRANSACTION_LABEL = u"Auto Dimension Structural Elements"
+_SLAB_OUTLINE_TRANSACTION_LABEL = u"Auto Dimension Slab Outline"
 
 
 def choose_category():
@@ -77,31 +99,40 @@ def choose_category():
         icon_factory=structural_category_icon)
 
 
-def run_structural_dimension_flow(doc, view, standard, category, title):
-    """Runs collect -> options -> command -> transaction for ONE category
-    ('Column' | 'Beam' | 'Footing' | 'Slab').
+def run_structural_dimension_flow(doc, view, standard, category, title, target_views=None):
+    """Runs pick view(s) -> collect -> options -> transaction(s) for ONE
+    category ('Column' | 'Beam' | 'Footing' | 'Slab').
     """
+    target_views = target_views or pick_target_views(doc, view, title)
     if category == CATEGORY_SLAB:
-        _run_slab(doc, view, standard, title)
+        _run_slab(doc, target_views, standard, title)
     else:
-        _run_category(doc, view, standard, category, title)
+        _run_category(doc, target_views, standard, category, title)
 
 
-def _run_category(doc, view, standard, category, title):
-    grids = list(FilteredElementCollector(doc, view.Id).OfClass(Grid).ToElements())
-    elements = list_structural_elements_by_category(doc, view, category)
-    if not elements:
-        forms.alert(u"No {0} elements found in this view.".format(category.lower()), title=title)
+def _run_category(doc, target_views, standard, category, title):
+    combined_types = {}
+    any_elements = False
+    any_grids = False
+    for v in target_views:
+        elements = list_structural_elements_by_category(doc, v, category)
+        if elements:
+            any_elements = True
+        for st in types_from_elements(elements):
+            combined_types.setdefault(element_id_token(st.Id), st)
+        if list(FilteredElementCollector(doc, v.Id).OfClass(Grid).ToElements()):
+            any_grids = True
+
+    if not any_elements:
+        forms.alert(u"No {0} elements found in the selected view(s).".format(category.lower()), title=title)
         return
-    if not grids:
-        forms.alert(u"No grids found in this view.", title=title)
+    if not any_grids:
+        forms.alert(u"No grids found in the selected view(s).", title=title)
         return
 
     dimension_types = list_linear_dimension_types(doc)
-    types_in_view = types_from_elements(elements)
-
     options = show_structural_dimension_options(
-        dimension_types, types_in_view, type_name,
+        dimension_types, list(combined_types.values()), type_name,
         standard.structural_chain_offset_mm, standard.structural_chain_gap_mm,
         category_label=category)
     if options is None:
@@ -110,40 +141,51 @@ def _run_category(doc, view, standard, category, title):
     standard.structural_chain_offset_mm = options.offset_mm
     standard.offset_first_mm = options.offset_mm
     standard.structural_chain_gap_mm = options.gap_mm
-
     selected_type_keys = set(element_id_token(st.Id) for st in options.selected_types)
-    dimensionable_elements = [
-        e for e in elements if element_id_token(e.Symbol.Id) in selected_type_keys]
+
+    results = run_across_views(
+        doc, target_views, _TRANSACTION_LABEL,
+        lambda v: _run_category_one_view(doc, v, standard, category, selected_type_keys, options))
+    alert_batch_results(results, title)
+
+
+def _run_category_one_view(doc, v, standard, category, selected_type_keys, options):
+    grids = list(FilteredElementCollector(doc, v.Id).OfClass(Grid).ToElements())
+    if not grids:
+        return v.Name, u"No grids found in this view."
+
+    elements = list_structural_elements_by_category(doc, v, category)
+    dimensionable_elements = [e for e in elements if element_id_token(e.Symbol.Id) in selected_type_keys]
     if not dimensionable_elements:
-        forms.alert(u"No elements match the selected type(s).", title=title)
-        return
+        return v.Name, u"No elements match the selected type(s)."
 
     detected_elements = grids + dimensionable_elements
-    _run_command(doc, view, standard, detected_elements, options, title)
+    return _run_command_one_view(doc, v, standard, detected_elements, options)
 
 
-def _run_slab(doc, view, standard, title):
-    slabs = list_slab_elements_in_view(doc, view)
-    if not slabs:
-        forms.alert(u"No slabs found in this view.", title=title)
+def _run_slab(doc, target_views, standard, title):
+    combined_types = {}
+    any_slabs = False
+    for v in target_views:
+        slabs = list_slab_elements_in_view(doc, v)
+        if slabs:
+            any_slabs = True
+        for st in list_slab_types_in_view(doc, v):
+            combined_types.setdefault(element_id_token(st.Id), st)
+
+    if not any_slabs:
+        forms.alert(u"No slabs found in the selected view(s).", title=title)
         return
 
     dimension_types = list_linear_dimension_types(doc)
-    slab_types = list_slab_types_in_view(doc, view)
-
     options = show_slab_dimension_options(
-        dimension_types, slab_types, type_name, standard.structural_chain_offset_mm)
+        dimension_types, list(combined_types.values()), type_name, standard.structural_chain_offset_mm)
     if options is None:
         return  # user cancelled
 
     standard.structural_chain_offset_mm = options.offset_mm
     standard.offset_first_mm = options.offset_mm
-
     selected_type_keys = set(element_id_token(st.Id) for st in options.selected_types)
-    dimensionable_slabs = [s for s in slabs if element_id_token(s.GetTypeId()) in selected_type_keys]
-    if not dimensionable_slabs:
-        forms.alert(u"No slabs match the selected type(s).", title=title)
-        return
 
     if options.mode == MODE_OVERALL_ONLY:
         # "All edges of the slab" traces the REAL outline (product owner,
@@ -152,52 +194,69 @@ def _run_slab(doc, view, standard, title):
         # from the grid-referenced mode below, since it needs every real
         # boundary edge, not just the bounding-box's 4 extreme faces, and
         # never needs grids at all.
-        _run_slab_outline(doc, view, standard, dimensionable_slabs, options, title)
-        return
+        results = run_across_views(
+            doc, target_views, _SLAB_OUTLINE_TRANSACTION_LABEL,
+            lambda v: _run_slab_outline_one_view(doc, v, standard, selected_type_keys, options))
+    else:
+        results = run_across_views(
+            doc, target_views, _TRANSACTION_LABEL,
+            lambda v: _run_slab_grid_one_view(doc, v, standard, selected_type_keys, options))
 
-    grids = list(FilteredElementCollector(doc, view.Id).OfClass(Grid).ToElements())
-    if not grids:
-        forms.alert(u"No grids found in this view.", title=title)
-        return
-
-    detected_elements = grids + dimensionable_slabs
-    _run_command(doc, view, standard, detected_elements, options, title)
+    alert_batch_results(results, title)
 
 
-def _run_slab_outline(doc, view, standard, slabs, options, title):
-    reference_provider = RevitReferenceProvider(doc, view)
-    writer = DimensionWriter(doc, view, dimension_type=options.dimension_type)
-    existing_dimension_checker = RevitExistingDimensionChecker(doc, view)
+def _run_slab_outline_one_view(doc, v, standard, selected_type_keys, options):
+    slabs = list_slab_elements_in_view(doc, v)
+    dimensionable_slabs = [s for s in slabs if element_id_token(s.GetTypeId()) in selected_type_keys]
+    if not dimensionable_slabs:
+        return v.Name, u"No slabs match the selected type(s)."
+
+    reference_provider = RevitReferenceProvider(doc, v)
+    writer = DimensionWriter(doc, v, dimension_type=options.dimension_type)
+    existing_dimension_checker = RevitExistingDimensionChecker(doc, v)
     failure_tracker = ScopedFailurePolicy()
 
-    t = Transaction(doc, u"Auto Dimension Slab Outline")
+    t = Transaction(doc, u"{0} ({1})".format(_SLAB_OUTLINE_TRANSACTION_LABEL, v.Name))
     opts = t.GetFailureHandlingOptions()
     opts.SetFailuresPreprocessor(failure_tracker)
     t.SetFailureHandlingOptions(opts)
     t.Start()
     try:
         result = auto_slab_outline_dimension_command.run(
-            slabs, reference_provider, existing_dimension_checker, writer, failure_tracker, standard)
+            dimensionable_slabs, reference_provider, existing_dimension_checker, writer, failure_tracker, standard)
     except Exception as e:
         t.RollBack()
-        forms.alert(u"Error:\n{0}".format(str(e)), title=title)
-        return
+        return v.Name, u"Error:\n{0}".format(str(e))
 
     if result.success:
         t.Commit()
     else:
         t.RollBack()
-    forms.alert(result.message, title=title)
+    return v.Name, result.message
 
 
-def _run_command(doc, view, standard, detected_elements, options, title):
-    reference_provider = RevitReferenceProvider(doc, view)
-    selection_reader = RevitSelectionReader(view, reference_provider)
-    writer = DimensionWriter(doc, view, dimension_type=options.dimension_type)
-    existing_dimension_checker = RevitExistingDimensionChecker(doc, view)
+def _run_slab_grid_one_view(doc, v, standard, selected_type_keys, options):
+    grids = list(FilteredElementCollector(doc, v.Id).OfClass(Grid).ToElements())
+    if not grids:
+        return v.Name, u"No grids found in this view."
+
+    slabs = list_slab_elements_in_view(doc, v)
+    dimensionable_slabs = [s for s in slabs if element_id_token(s.GetTypeId()) in selected_type_keys]
+    if not dimensionable_slabs:
+        return v.Name, u"No slabs match the selected type(s)."
+
+    detected_elements = grids + dimensionable_slabs
+    return _run_command_one_view(doc, v, standard, detected_elements, options)
+
+
+def _run_command_one_view(doc, v, standard, detected_elements, options):
+    reference_provider = RevitReferenceProvider(doc, v)
+    selection_reader = RevitSelectionReader(v, reference_provider)
+    writer = DimensionWriter(doc, v, dimension_type=options.dimension_type)
+    existing_dimension_checker = RevitExistingDimensionChecker(doc, v)
     failure_tracker = ScopedFailurePolicy()
 
-    t = Transaction(doc, u"Auto Dimension Structural Elements")
+    t = Transaction(doc, u"{0} ({1})".format(_TRANSACTION_LABEL, v.Name))
     opts = t.GetFailureHandlingOptions()
     opts.SetFailuresPreprocessor(failure_tracker)
     t.SetFailureHandlingOptions(opts)
@@ -208,11 +267,10 @@ def _run_command(doc, view, standard, detected_elements, options, title):
             existing_dimension_checker, writer, failure_tracker, options.mode, standard)
     except Exception as e:
         t.RollBack()
-        forms.alert(u"Error:\n{0}".format(str(e)), title=title)
-        return
+        return v.Name, u"Error:\n{0}".format(str(e))
 
     if result.success:
         t.Commit()
     else:
         t.RollBack()
-    forms.alert(result.message, title=title)
+    return v.Name, result.message
