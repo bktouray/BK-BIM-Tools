@@ -1,4 +1,6 @@
-# Modeling panel (PRD §4). Buttons added as modules land: Walls, Doors,
-# Windows, Rooms, Floors, Roofs, Stairs, Structural.
-layout:
-  - WallLegend
+# Modeling panel (PRD §4). Reserved empty panel - WallLegend moved to
+# Documentation.panel 2026-07-08 (grouped with dimensioning/legend/schedule
+# tools instead). Stays listed in the tab layout so it appears in the right
+# place once its first modeling-specific tool lands (pyRevit hides empty
+# panels automatically, same pattern as QAQC/AI/Settings).
+layout: []

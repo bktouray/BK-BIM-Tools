@@ -1,0 +1,21 @@
+title: Documentation
+# Documentation panel, three groups separated by lines: dimensioning tools
+# (Smart Dimension - a picker/launcher for every tool below; Grid
+# Dimensions; Wall & Openings; Exterior Wall Dimension - a small standalone
+# shortcut for just the 3-string exterior perimeter treatment; Structural
+# Dimensions - columns/footings/beams/slabs) --- legends (Wall Legend) ---
+# schedules (reserved - product owner, 2026-07-08: "later ill have my
+# scheduling tools there," wants dimensions/legends/schedules each visually
+# separated by their own line, not just one line for legends+schedules
+# together). (This panel was itself originally called "Documentation"
+# before being split into "Dimensioning" + "Modeling" on 2026-07-06 for
+# function-based grouping - recombined 2026-07-08.)
+layout:
+  - SmartDimension
+  - AutoGridDimension
+  - AutoWallOpeningDimension
+  - ExteriorWallDimension
+  - AutoStructuralDimension
+  - "---"
+  - WallLegend
+  - "---"

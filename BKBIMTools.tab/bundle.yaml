@@ -5,15 +5,20 @@
 # the tab had the branded title, everything underneath still said "BKDesigns."
 title: BK BIM Tools
 
-# Panel order within the tab. About/Settings panel is always first. Panels
-# with no buttons yet are hidden by pyRevit automatically (QAQC, AI, Settings
-# stay listed here so they appear in the right place once their first tool
-# lands, rather than needing this reordered later).
+# Panel order within the tab. About stays first; Utilities stays last
+# (product owner, 2026-07-08: "flip the arrangement... utilities goes
+# last... documentation comes first then cad to revit then boq then
+# utilities"). Panels with no buttons yet are hidden by pyRevit
+# automatically (QAQC, AI, Settings stay listed here so they appear in the
+# right place once their first tool lands, rather than needing this
+# reordered later).
 layout:
   - About
-  - Dimensioning
+  - Documentation
+  - CAD to Revit
+  - BOQ Export
   - Modeling
   - QAQC
   - AI
-  - Utilities
   - Settings
+  - Utilities

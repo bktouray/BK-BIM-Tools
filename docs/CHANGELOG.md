@@ -4,6 +4,105 @@ All notable changes to BK BIM Tools are recorded here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer per module and
 per suite (SAD §5 versioning).
 
+## Panel order flipped; Documentation gets a 3-way split; real category icons
+
+Follow-up to the ribbon reorg: product owner wanted the Documentation panel
+split into three visually distinct groups (not just dimensions vs.
+everything else), the tab's panel order flipped so Utilities is always
+last, and the BOQ category icons - most of which turned out to be
+undifferentiated placeholder shapes, not real per-category icons -
+actually fixed.
+
+### Changed
+- `Documentation.panel` layout now has two separators: dimensioning tools
+  `---` Wall Legend `---` (reserved for future scheduling tools) - was
+  previously one line before Wall Legend only.
+- Tab panel order flipped: `About, Documentation, CAD to Revit, BOQ
+  Export, Modeling, QAQC, AI, Settings, Utilities` - Documentation now
+  leads (after About), Utilities moved to dead last.
+- 6 of the 12 BOQ category icons were plain undifferentiated rounded
+  rectangles/squares (Walls, Doors, Floors, Foundations, Rooms, Windows) -
+  replaced with real per-category icons (Lucide `brick-wall`, `door-open`,
+  `grid-2x2`, `landmark`, `layout-dashboard`; Tabler `window`), all
+  recolored to `#333333`. The other 6 (Columns, Ceilings, Materials,
+  Railings and Stairs, Roofs, Beams and Framing) were already good and
+  left untouched.
+
+## Ribbon reorg after the merge; CollapseSheets removed (Revit 2026 broke it)
+
+Follow-up to the NEOTEC merge: product owner wanted the new CAD automation
+panel promoted to the front of the tab, Wall Legend regrouped with
+dimensioning tools instead of left in its own now-empty panel, and
+CollapseSheets either fixed or dropped once it turned out to be unfixable
+without a fragile workaround.
+
+### Changed
+- `Automation.panel` renamed to **`CAD to Revit.panel`** and moved to be
+  the first panel after About (tab layout: About, CAD to Revit,
+  Documentation, Modeling, BOQ Export, QAQC, AI, Utilities, Settings).
+- `Dimensioning.panel` renamed back to **`Documentation.panel`** (it was
+  originally called that before a 2026-07-06 split) - now holds every
+  dimensioning tool, then a `---` separator, then `WallLegend` (moved out
+  of `Modeling.panel`, which is now an empty reserved panel like
+  QAQC/AI/Settings) - ready for scheduling tools to join after the line.
+- `Master Export.pushbutton` and `CollapseSheets.pushbutton` (before
+  removal) got new icons - the ones carried over from NEOTEC were wrong
+  (a plain column/pillar glyph on CollapseSheets, an ambiguous overlapping-
+  window glyph on Master Export). Replaced with Lucide's `list-collapse`
+  and `combine` icons respectively, recolored to the suite's `#333333`.
+
+### Removed
+- **`CollapseSheets.pushbutton`** - investigated live against this Revit
+  2026 build and found the Project Browser is now rendered as an embedded
+  Chromium web view, not a native tree control: there is no
+  `ControlType.Tree`/`TreeItem` anywhere in the window, no
+  `ExpandCollapsePattern` on any row, and even the browser's own visible
+  filter buttons ("Views"/"Sheets"/etc.) don't respond to UI Automation's
+  `Invoke()` at all. The only remaining fix would be simulating real mouse
+  clicks at literal screen-pixel coordinates (fragile: breaks on scroll,
+  DPI change, or window focus, and needs re-verifying after any Revit UI
+  update). Product owner chose to drop the tool rather than take on that
+  fragility.
+
+## Merged in a second extension: CAD-to-Revit automation and BOQ export
+
+Product owner had been building a separate pyRevit extension
+(`NEOTEC.extension`) on a work PC, under a different company's branding.
+Folded it into this suite as-is (surface-level standardization only - the
+internal CAD-detection and Excel-export logic is unchanged, just renamed and
+restyled to match BK BIM Tools conventions), with every NEOTEC company
+reference replaced by BK Designs / Baboucarr Katim Touray.
+
+### Added
+- **`Automation.panel`**: `AutoColumn`, `AutoWall`, `AutoDoor`, `AutoWindow`,
+  `AutoFloor`, `AutoGrid` - CAD (DWG) layer to native-Revit-element
+  generation, ported from `lib/neotec_auto` to `lib/bkbim/automation`. The
+  source extension's own grid-dimensioning tool (`AutoDimension`) was
+  dropped as redundant with the existing `AutoGridDimension` pushbutton.
+- **`BOQ Export.panel`**: 12 per-category Excel takeoff buttons
+  (`Categories.pulldown`), `Master Export` (multi-category in one workbook),
+  `Split Workbook` - ported from `lib/neotec` to `lib/bkbim/boq`, including
+  the CPython-subprocess bridge (`pybridge.py`/`runner.py`) that shells out
+  to pyRevit's bundled CPython engine for the vendored `openpyxl` writer
+  (`lib/vendor/`, carried over unmodified).
+- **`Utilities.panel`**: `CollapseSheets` (Project Browser UI-Automation
+  helper), folded in from the source extension's own `Browser.panel`.
+- `bkbim.core.branding` gained `COMPANY_NAME = "BK Designs"` alongside the
+  existing `AUTHOR` constant.
+
+### Notes
+- Every migrated pushbutton was converted from the source extension's
+  per-button `bundle.yaml` metadata to this suite's script.py-literal
+  convention (`__title__`/`__doc__`/`__author__`/`__authors__`), with
+  tooltips trimmed to match.
+- Not carried over: the source extension's dev/build-only tooling
+  (`_build_buttons.py`, `_make_icon.py`, `_test_xlio.py`, icon-source
+  files), its own `README.md`/`LICENSE`, and its stale `zzz_neotec` layout
+  reference.
+- No architectural rewrite - the CAD-detection and BOQ-export internals
+  keep their original module layout, not the domain/app/adapter/DI pattern
+  used elsewhere in this suite.
+
 ## Auto-Detect gets multi-view too; a separate style for exterior perimeter strings
 
 Product owner tried Smart Dimension's Auto-Detect expecting the same
