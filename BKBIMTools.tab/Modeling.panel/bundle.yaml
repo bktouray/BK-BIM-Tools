@@ -1,0 +1,4 @@
+# Modeling panel (PRD §4). Buttons added as modules land: Walls, Doors,
+# Windows, Rooms, Floors, Roofs, Stairs, Structural.
+layout:
+  - WallLegend

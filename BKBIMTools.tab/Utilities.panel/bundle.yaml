@@ -1,0 +1,5 @@
+# Utilities panel (PRD §4). Buttons added as modules land: Project Cleaner,
+# Batch Rename, Family Utilities, View Manager.
+layout:
+  - CountSelected
+  - ToggleGridExtent

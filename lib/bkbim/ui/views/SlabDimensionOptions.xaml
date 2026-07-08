@@ -1,0 +1,113 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Slab Dimensions"
+    Width="460"
+    SizeToContent="Height"
+    MinWidth="400" MinHeight="380"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="#FFFFFF"
+    FontFamily="Segoe UI">
+
+    <!-- Inline tokens for this window (UX_SPEC.md Sec 2), matching every other
+         options window. Migrate to a shared ui/themes/Tokens.xaml once this
+         near-identical pattern (Wall & Opening / Structural / Slab) gets a
+         fourth consumer (ADR-0002). -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="Brand.Primary" Color="#1A56DB"/>
+        <SolidColorBrush x:Key="Text.Primary" Color="#111417"/>
+        <SolidColorBrush x:Key="Text.Secondary" Color="#5B6572"/>
+        <SolidColorBrush x:Key="Surface.Raised" Color="#F7F8FA"/>
+        <SolidColorBrush x:Key="Border.Default" Color="#DFE3E8"/>
+
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock Text="Slab Dimensions" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock Text="Dimensions slabs detected in the current view. Each slab's own bounding box is used, so an irregular (non-rectangular) slab outline is only approximated by its outer envelope, not traced edge by edge."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,0"/>
+
+        <!-- Dimension style -->
+        <StackPanel Grid.Row="2" Margin="0,16,0,0">
+            <Label Content="Dimension style"/>
+            <ComboBox x:Name="DimensionStyleCombo" Height="28"/>
+        </StackPanel>
+
+        <!-- Offset spacing -->
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <Label x:Name="OffsetLabel" Content="Offset from grid line (mm)"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="OffsetSlider" Grid.Column="0" Minimum="0" Maximum="3000"
+                        VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBox x:Name="OffsetTextBox" Grid.Column="1" Height="26"
+                         VerticalContentAlignment="Center" TextAlignment="Right"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- Dimensioning mode -->
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <Label Content="Dimensioning mode"/>
+            <RadioButton x:Name="GridToEdgesRadio" Content="Grid to slab edges"
+                         GroupName="SlabMode" IsChecked="True" Margin="0,0,0,4"/>
+            <RadioButton x:Name="AllEdgesRadio" Content="All edges of the slab"
+                         GroupName="SlabMode"/>
+        </StackPanel>
+
+        <!-- Slab types to dimension -->
+        <StackPanel Grid.Row="5" Margin="0,12,0,0">
+            <Label Content="Types to dimension"/>
+            <TextBlock Text="Floor/slab types visible in the view - narrow this down to just the type(s) you want dimensioned."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <ListBox x:Name="StructuralTypesList" Height="110" SelectionMode="Extended"/>
+        </StackPanel>
+
+        <!-- Row 5 ("*") intentionally empty: absorbs extra vertical space so the
+             footer stays anchored near the bottom instead of floating mid-window
+             when the user resizes taller. -->
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Run" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,4 @@
+# QA/QC panel (PRD §4). Folder name can't contain "/", so the display
+# title is overridden here.
+title: QA/QC
+layout: []

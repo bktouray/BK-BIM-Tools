@@ -1,0 +1,19 @@
+# Tab display name is "BK BIM Tools" (ADR-0003). Extension/tab/panel folders
+# renamed from BKDesigns.* to BKBIMTools.*/About.panel on 2026-07-07, so the
+# extension identity (visible in pyRevit's Extensions manager) and the About
+# panel's own ribbon label both match the tab title too - previously only
+# the tab had the branded title, everything underneath still said "BKDesigns."
+title: BK BIM Tools
+
+# Panel order within the tab. About/Settings panel is always first. Panels
+# with no buttons yet are hidden by pyRevit automatically (QAQC, AI, Settings
+# stay listed here so they appear in the right place once their first tool
+# lands, rather than needing this reordered later).
+layout:
+  - About
+  - Dimensioning
+  - Modeling
+  - QAQC
+  - AI
+  - Utilities
+  - Settings
