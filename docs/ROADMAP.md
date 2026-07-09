@@ -1182,3 +1182,86 @@ per real edge, not the old 2), 0 errors. Inspected every created dimension's
 actual value - 21700/11200/11200/4375/4375/12950/600/600mm - all
 architecturally sensible. Dimension count returned to its exact
 pre-existing value (0) after rollback. 173 unit tests total.
+
+## Auto Mark (2026-07-08, Module 02, first Documentation "schedules" tool)
+
+Product owner: "if i click Auto Mark, it will give me a bunch of
+categories... display the family types and family names in use, dont
+itemize every instance... sort it from largest to smallest and let me
+select a prefix for the category... this tool will help me arrange my
+schedules, which is the tool youll build next." First tool of the
+Documentation panel's third group (legends/schedules), following the two
+lines added the same day to separate dimension tools / legends / schedules.
+
+Assigns the instance Mark parameter (`BuiltInParameter.ALL_MODEL_MARK`) -
+confirmed via product-owner clarification that this needed to be the
+per-instance Mark (unique value per placed element, e.g. D1/D2/D3), not
+Type Mark (one value shared by every instance of a type) - the review
+window's "group by family+type, don't itemize instances" display is purely
+a UI simplification; every placed instance still gets its own value on Run.
+
+New vertical slice, doc-wide (no view scoping, unlike every dimensioning
+tool):
+- `domain/marking/mark_planner.py` + `domain/models/mark_{instance,
+  type_group,family_group}.py` - pure sort/numbering logic, zero Revit
+  imports (ADR-0001). Types sorted largest-to-smallest per family by
+  (dimension_a, dimension_b); instances within a type ordered by level then
+  x/y then a stable id; numbering restarts at 1 per family/prefix. A family
+  left blank is skipped. `tests/unit/test_mark_planner.py` (9 cases) caught
+  a real bug during development - a missing-dimension sort key sorted
+  first instead of last until a test caught it.
+- `revit/adapter/mark_type_reader.py` - doc-wide FilteredElementCollector
+  per category (Doors/Windows/Columns/Beams/Footings; Slabs deferred - no
+  clean length/width for an irregular sketched shape), grouped by Symbol.
+  Reuses the door/window Width/Height BuiltInParameter fallback lists
+  already in `boq/extractors.py`, and extends the column B/H display-name
+  fallback pairs already in `automation/columns.py` (adding "bf"/"d" for
+  I-shaped beams) - Beams and Footings had no prior art for this, so those
+  fallback lists are new.
+- `revit/adapter/mark_writer.py` / `mark_flow.py` - plain `param.Set()`
+  writer (no `IFailuresPreprocessor` needed, just IsReadOnly + try/except),
+  Transaction owned by the flow per SAD Sec 4.4. First real consumer of
+  `core/settings.py` (previously wired but unused) - remembers each
+  family's prefix at the USER layer (`%APPDATA%\pyRevit\
+  bkbim_auto_mark_prefixes.json`), deliberately not scoped to the current
+  document since a prefix habit ("Single-Flush" -> "D") carries across
+  projects.
+- `app/commands/auto_mark_command.py` - aggregates marked/failed counts,
+  tolerates individual write failures without aborting the run.
+  `tests/unit/test_auto_mark_command.py` (5 cases) against a fake writer.
+- `ui/views/auto_mark_options.py` + `.xaml` - one family group per row
+  (built programmatically, same idiom as `category_picker.py`'s choice
+  buttons - no data-bound repeating template exists elsewhere in this
+  codebase yet), each with its own prefix TextBox and a live mark-range
+  preview that recomputes as you type, scoped to that family only.
+  Deliberately takes `dimension_a_label`/`dimension_b_label` as plain
+  strings from the caller rather than importing `revit.adapter` directly,
+  matching `structural_dimension_options.py`'s `type_name_fn`-callback
+  convention for keeping the UI layer decoupled from Revit adapter
+  specifics.
+
+212 unit tests total (207 pre-existing + 9 mark_planner + 5 auto_mark_command,
+run with plain CPython, no Revit required).
+
+**Corrected same day, immediately after the above landed** (before any real
+use): product owner: "for the tagging, if the family name and type is the
+same, they should have the same mark." The original design gave every
+PLACED INSTANCE its own unique number even within one type (D1, D2, D3 for
+three identical doors); this reverses that - one mark per family+type,
+shared by every instance of it (D1 for every instance of the largest type,
+D2 for every instance of the next, etc.). Simplified the domain model at
+the same time now that per-instance position no longer matters for
+numbering: deleted `MarkInstance` entirely and `_instance_sort_key` from
+`mark_planner.py` (dead code now that location/level don't drive anything);
+`MarkTypeGroup.instance_refs` is now a plain list of ElementIds, not
+wrapper objects; `mark_type_reader.py` no longer resolves each instance's
+level/location at all (removed `_level_elevation`/`_location_xy`, which
+only ever existed to feed the now-gone per-instance sort). Review window's
+per-type preview now shows one mark, not a range. Tests rewritten to match
+(`test_mark_planner.py`, `test_auto_mark_command.py`) - 211 unit tests
+total (net -1: two location/ordering tests for behavior that no longer
+exists were removed, replaced by ones proving identical-type instances
+share a mark). **Live-verified against the real project** (rolled back):
+marked a 25-instance door family (24 of one type, 1 of another) - all 24
+came back with the identical mark, the 1 got a different one, confirmed by
+reading `ALL_MODEL_MARK` back off the real elements before rollback.

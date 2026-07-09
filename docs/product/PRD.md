@@ -72,6 +72,42 @@ Feature parity with the existing `Auto Dims SC v5` monolith, plus: no `DEBUG` gl
 structured logging, unit-tested engines, standards/preset-driven configuration, and a
 WPF settings window on the shared shell.
 
+## 5A. Module 02 — Auto Mark
+
+Numbers doors, windows, columns, beams, and footings for schedules -
+lives in the Documentation panel's third group, alongside legends and
+future scheduling tools.
+
+### 5A.1 Scope of targets
+Doors, Windows, Columns, Beams, Footings (Slabs deferred - no clean
+length/width equivalent for an irregular sketched shape).
+
+### 5A.2 Flow
+Pick a category -> review window groups every placed family type (not
+every instance) under its family, with an editable prefix per family and a
+live preview of the mark each type would get -> Run writes the instance
+Mark parameter (`ALL_MODEL_MARK`) across every placed instance of that
+category.
+
+### 5A.3 Numbering rule
+One mark per family+type, shared by every instance of that type ("if the
+family name and type is the same, they should have the same mark"). Per
+family/prefix: types ordered largest-to-smallest by the category's
+relevant dimension pair (Width x Height for Doors/Windows, B x H for
+Columns/Beams, Length x Width for Footings) and numbered 1, 2, 3... -
+every instance of type N gets that same mark. Numbering restarts at 1 per
+family. A family left blank is skipped entirely.
+
+### 5A.4 Scope notes
+Doc-wide (every placed instance in the model, not view-scoped). Every run
+overwrites existing Marks for every instance in the chosen category - no
+partial/preserve mode. Per-family prefixes are remembered across runs and
+projects (first real use of the suite's settings layer).
+
+### 5A.5 Acceptance (Module 02)
+Unit-tested numbering/sort logic (`tests/unit/test_mark_planner.py`,
+`test_auto_mark_command.py`); live-verified against a real project file.
+
 ## 6. Settings & presets (suite-wide)
 
 Centralized manager; modules never manage settings independently. Domains: Themes,

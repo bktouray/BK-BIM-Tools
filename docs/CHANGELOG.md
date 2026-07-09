@@ -4,6 +4,21 @@ All notable changes to BK BIM Tools are recorded here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer per module and
 per suite (SAD §5 versioning).
 
+## Added Auto Mark (Module 02)
+
+New pushbutton in Documentation panel's third group: numbers doors,
+windows, columns, beams, and footings for schedules. Pick a category,
+give each family in use a prefix (e.g. "D" for Single-Flush, "SD" for
+Sliding-Door), and every instance of a given family+type gets the same
+Mark - largest type first, restarting at 1 for each new prefix (so every
+900x2100 Single-Flush door gets "D1", every 800x2100 one gets "D2", etc -
+"if the family name and type is the same, they should have the same
+mark"). See docs/product/PRD.md §5A and docs/ROADMAP.md for the full spec
+and implementation notes. Full new vertical slice (`domain/marking/`,
+`revit/adapter/mark_*`, `app/commands/auto_mark_command.py`,
+`ui/views/auto_mark_options.py`), 14 new unit tests, first real use of
+`core/settings.py`.
+
 ## Panel order flipped; Documentation gets a 3-way split; real category icons
 
 Follow-up to the ribbon reorg: product owner wanted the Documentation panel

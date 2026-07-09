@@ -1,0 +1,69 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Auto Mark"
+    Width="560"
+    SizeToContent="Height"
+    MinWidth="480" MinHeight="360"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="#FFFFFF"
+    FontFamily="Segoe UI">
+
+    <!-- Inline tokens for this window (UX_SPEC.md Sec 2), matching every other
+         options window. Migrate to a shared ui/themes/Tokens.xaml once a fourth
+         window needs the same values (ADR-0002). -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="Brand.Primary" Color="#1A56DB"/>
+        <SolidColorBrush x:Key="Text.Primary" Color="#111417"/>
+        <SolidColorBrush x:Key="Text.Secondary" Color="#5B6572"/>
+        <SolidColorBrush x:Key="Surface.Raised" Color="#F7F8FA"/>
+        <SolidColorBrush x:Key="Border.Default" Color="#DFE3E8"/>
+
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleText" Text="Auto Mark" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText"
+                       Text="Give each family a prefix to number it - types are numbered largest to smallest, restarting at 1 per family."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,0"/>
+
+        <!-- Family groups, built programmatically in code-behind -->
+        <ScrollViewer Grid.Row="2" Height="340" Margin="0,16,0,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="FamilyGroupsPanel"/>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Run" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>
