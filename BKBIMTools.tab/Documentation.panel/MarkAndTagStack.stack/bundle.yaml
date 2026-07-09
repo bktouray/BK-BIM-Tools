@@ -1,0 +1,10 @@
+# A .stack has no UI/title of its own - its children render as small
+# buttons stacked vertically within the parent panel, next to whatever
+# else is in Documentation.panel's layout (here: to the right of the big
+# AutoMarkAndTag button, forming the "triangle" arrangement the product
+# owner asked for, 2026-07-09). Explicit layout kept (same convention as
+# every panel's own bundle.yaml) so the stacking order is Mark-on-top,
+# Tag-below - numbering happens before tagging.
+layout:
+  - AutoMark
+  - AutoTag

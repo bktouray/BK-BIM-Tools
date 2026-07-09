@@ -4,11 +4,14 @@ title: Documentation
 # Dimensions; Wall & Openings; Exterior Wall Dimension - a small standalone
 # shortcut for just the 3-string exterior perimeter treatment; Structural
 # Dimensions - columns/footings/beams/slabs) --- legends (Wall Legend) ---
-# schedules (Auto Mark - numbers doors/windows/columns/beams/footings for
-# schedules; more scheduling tools land here later). (This panel was itself
-# originally called "Documentation" before being split into "Dimensioning"
-# + "Modeling" on 2026-07-06 for function-based grouping - recombined
-# 2026-07-08.)
+# schedules (Auto Mark & Tag - a normal-size button that runs Auto Mark then
+# Auto Tag back to back for one category, PLUS a MarkAndTagStack.stack of
+# the two individual buttons stacked small to its right, so all three ways
+# to run this are visible at once - product owner, 2026-07-09: "arrange it
+# nicely... kinda like a triangle arrangement"; more scheduling tools land
+# here later). (This panel was itself originally called "Documentation"
+# before being split into "Dimensioning" + "Modeling" on 2026-07-06 for
+# function-based grouping - recombined 2026-07-08.)
 layout:
   - SmartDimension
   - AutoGridDimension
@@ -18,4 +21,5 @@ layout:
   - "---"
   - WallLegend
   - "---"
-  - AutoMark
+  - AutoMarkAndTag
+  - MarkAndTagStack

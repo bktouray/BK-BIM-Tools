@@ -1265,3 +1265,139 @@ share a mark). **Live-verified against the real project** (rolled back):
 marked a 25-instance door family (24 of one type, 1 of another) - all 24
 came back with the identical mark, the 1 got a different one, confirmed by
 reading `ALL_MODEL_MARK` back off the real elements before rollback.
+
+## Auto Tag (2026-07-09, Module 03, second Documentation "schedules" tool)
+
+Product owner: "add a section after the automark, to autotag the marked
+items in selected views. give me options to select the tag i want, and the
+views i want to tag stuff." Confirmed scope before building (product owner
+picked the recommended default at each fork): one category per run (mirrors
+Auto Mark/Structural Dimensions' own category-picker flow), skip elements
+that already have a tag in a view (safe to re-run), and every plan/section/
+elevation view selectable (not filtered down to "only views containing that
+category").
+
+Unlike Auto Mark (doc-wide, no view scoping - a Mark is one value per type
+regardless of view), Auto Tag is view-scoped like the four dimensioning
+tools, so it reuses their existing infrastructure directly instead of
+building new UI: `view_selection_prompt.pick_target_views` for the "just
+this view / pick multiple views" prompt, and `multi_view_batch.
+run_across_views`/`alert_batch_results` for the per-view-Transaction /
+combined-alert shape - zero new view-picking code needed.
+
+New vertical slice:
+- `domain/tagging/ports.py` - `IAlreadyTaggedChecker`/`ITagWriter`, same
+  port-per-Revit-concern pattern as `domain/dimensioning/ports.py`. No
+  dedicated planner module - unlike Auto Mark's family/type grouping, the
+  actual logic here (tag what's untagged, skip what isn't) is a single
+  pass, so `app/commands/auto_tag_command.py` does the loop directly,
+  same "thin command, no domain module" shape as `toggle_grid_extent_command.py`.
+- `revit/adapter/tag_type_reader.py` - reuses Auto Mark's own category set
+  (`mark_type_reader.CATEGORIES`/`CATEGORY_BUILTIN_CATEGORIES`) so "Doors"
+  means the same thing in both tools. Columns is the one category with two
+  distinct host categories (architectural `OST_Columns`, structural
+  `OST_StructuralColumns`), each with its own tag category (`OST_ColumnTags`/
+  `OST_StructuralColumnTags`) - a Column Tag can't tag a structural column
+  and vice versa. `list_tag_types` lists both tag categories' loaded types
+  together (prefixed with the tag category name in the picker when more
+  than one is present); `list_taggable_elements` only returns elements
+  whose own host category matches the CHOSEN tag type's category, so a
+  mismatched element is simply never handed to the writer rather than
+  erroring.
+- `revit/adapter/tag_writer.py` - `IndependentTag.Create(doc, typeId,
+  viewId, reference, addLeader=False, TagOrientation.Horizontal, point)`.
+  `point` resolution falls back through `Location.Point` ->
+  `Location.Curve` midpoint (beams are curve-based, not point-based, unlike
+  every other Auto Mark category) -> bounding-box center, so no category
+  silently fails to resolve a placement point.
+- `revit/adapter/already_tagged_checker.py` - collects every
+  `IndependentTag` in the view via `GetTaggedLocalElementIds()` (Revit
+  2022+ API; handles multi-reference tags) into one set, cached for the
+  whole run - mirrors `existing_dimension_checker.py`'s "skip if already
+  placed" convention for dimensions.
+- `revit/adapter/tag_flow.py` - category picker -> `pick_target_views` ->
+  tag-type options window -> `run_across_views`, one Transaction per view.
+- `ui/views/auto_tag_options.py` + `.xaml` - a single tag-type ComboBox;
+  nothing else to configure per run since view selection already happened.
+- `BKBIMTools.tab/Documentation.panel/AutoTag.pushbutton` - added directly
+  after `AutoMark` in `Documentation.panel/bundle.yaml`'s `layout:` list.
+  Icon: Lucide "tags" (plural, two overlapping tag shapes) - deliberately
+  different glyph from Auto Mark's single-tag icon so the two are visually
+  distinct at a glance; rendered via the established svglib+reportlab
+  recipe (`currentColor` replaced with a literal color first, alpha
+  derived from a white-vs-black render pair), recolored `#333333`,
+  confirmed every opaque pixel matches exactly.
+
+`tests/unit/test_auto_tag_command.py` (6 cases: no elements, tags every
+untagged element, skips already-tagged, a refused write is counted but
+doesn't stop the run, a checker error is treated as not-tagged rather than
+aborting, everything-already-tagged fails with a clear message) - all
+against fakes, no Revit involved. 217 unit tests total (211 pre-existing +
+6 auto_tag_command).
+
+**Not yet live-verified** - no Revit session was open when this was built.
+The riskiest assumptions (exact `BuiltInCategory` names for the four tag
+categories, `IndependentTag.Create`'s modern signature, whether
+`GetTaggedLocalElementIds()` is available) are all defensively coded
+(`getattr(..., None)` fallbacks, try/except around every Revit call) but
+have not been exercised against a real model yet - next step is a rolled-
+back live test the next time a project is open, per this project's
+standard verification discipline.
+
+## Auto Mark & Tag combined button + ribbon regroup (2026-07-09, same day)
+
+Product owner: "now i want an auto mark & tag pushbutton. this combines
+the features of automark and autotag in one button. i still want to
+retain the seperate buttons though however, i want you to arrange it
+nicely. Automark and tag pushbutton first with a normal size icon and all,
+then auto mark and auto tag become smaller push buttons stacked ontop of
+eachother and to the right of the combined pushbutton. kinda like a
+triangle arrangement."
+
+`revit/adapter/mark_and_tag_flow.py` - pure sequencing, zero new business
+logic: calls `mark_flow.run_auto_mark_flow` then, unless the user cancelled
+or nothing existed for the category, `tag_flow.run_auto_tag_flow` for the
+same category. Both flows stay exactly as they were - this module owns
+none of their logic, just the order.
+
+**Ribbon arrangement - discovered pyRevit's `.stack` bundle type** (not
+previously used in this suite): a folder suffixed `.stack` (like
+`.pushbutton`/`.panel`/`.pulldown`) is a container with no UI of its own -
+its children render as small buttons stacked vertically within the parent
+panel (confirmed by reading pyRevit's own source,
+`pyrevitlib/pyrevit/extensions/components.py`'s `GenericStack`/`Panel.
+contains()`: "stacks itself does not have any ui and its subitems are
+displayed within the ui of the parent panel"). Moved the existing
+`AutoMark.pushbutton`/`AutoTag.pushbutton` folders (via `git mv` for the
+tracked one) into a new `MarkAndTagStack.stack`, with its own `bundle.yaml`
+`layout: [AutoMark, AutoTag]` so Mark stacks above Tag - Documentation.
+panel's own `layout:` now lists `AutoMarkAndTag` (normal-size, first) then
+`MarkAndTagStack` (the small stacked pair, immediately to its right) -
+renders as the requested "triangle": one big button, two small ones
+stacked beside it.
+
+Icon: Lucide "tag-plus" (a tag with a "+") for the combined button -
+visually distinct from Auto Mark's "tag" and Auto Tag's "tags" icons while
+still reading as related. Rendered via the same svglib+reportlab recipe
+already used for Auto Tag's icon.
+
+**Live-verified** (real project, Revit was open this time): ran the
+underlying Auto Tag adapter code directly against real elements in rolled-
+back transactions - confirmed every `BuiltInCategory` tag-category name
+guessed earlier was correct (`OST_DoorTags`, `OST_WindowTags`,
+`OST_ColumnTags`/`OST_StructuralColumnTags` - both present and listed
+separately for Columns, `OST_StructuralFramingTags`,
+`OST_StructuralFoundationTags`), `IndependentTag.Create`'s signature is
+correct (20 real doors tagged), the `Location.Curve` midpoint fallback
+works for curve-based elements (19 real beams tagged - beams aren't
+point-based like doors/windows/columns), and `GetTaggedLocalElementIds()`
+correctly detects re-tagging (a second run against the same 20 doors, same
+transaction, correctly reported "everything already tagged" instead of
+creating duplicates). Every transaction rolled back cleanly, confirmed by
+re-counting `IndependentTag`s before/after. This retroactively confirms
+the previous entry's "not yet live-verified" caveat for Auto Tag itself -
+no changes were needed, every earlier assumption held. The combined flow's
+own UI orchestration (`mark_and_tag_flow.py`) is thin sequencing on top of
+two independently-proven flows and shows modal dialogs, so it isn't
+callable headlessly through the MCP test channel - not yet click-tested by
+an actual user run, unlike the adapter code underneath it.

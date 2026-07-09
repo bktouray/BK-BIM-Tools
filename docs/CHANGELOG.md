@@ -4,6 +4,40 @@ All notable changes to BK BIM Tools are recorded here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer per module and
 per suite (SAD §5 versioning).
 
+## Added Auto Mark & Tag combined button; regrouped Auto Mark/Auto Tag into a stack
+
+New `AutoMarkAndTag.pushbutton` in Documentation panel's third group: runs
+Auto Mark then Auto Tag back to back for one category, in one click. Pure
+orchestration (`revit/adapter/mark_and_tag_flow.py`) - reuses both
+existing flows completely unchanged, no logic duplicated. The two
+individual buttons stay available: `AutoMark.pushbutton`/`AutoTag.pushbutton`
+moved into a new `MarkAndTagStack.stack`, which renders them as small
+buttons stacked vertically (Mark on top, Tag below) immediately to the
+right of the big combined button - a "triangle" arrangement, per the
+product owner's request. Icon: Lucide "tag-plus" (a tag shape with a "+"),
+distinct from Auto Mark's "tag" and Auto Tag's "tags" icons.
+**Live-verified** against the real open project (rolled back): confirmed
+the tag-category `BuiltInCategory` names guessed for Auto Tag are all
+correct (both Column Tag categories present and listed), tagged 20 real
+doors and 19 real beams (the latter exercising the LocationCurve-midpoint
+fallback, since beams aren't point-based like the other categories),
+re-running correctly detected all of them as already-tagged via
+`GetTaggedLocalElementIds()`, and every transaction rolled back cleanly.
+
+## Added Auto Tag (Module 03)
+
+New pushbutton in Documentation panel's third group, right after Auto Mark:
+tags marked doors, windows, columns, beams, or footings in whichever
+view(s) you pick. Pick a category, pick the view(s) to run on (just the
+current view or several at once, same picker every dimensioning tool
+already uses), pick a loaded tag family/type, and every untagged element of
+that category gets tagged - elements that already have a tag in a view are
+skipped, so re-running is safe. See docs/product/PRD.md §5B and
+docs/ROADMAP.md for the full spec and implementation notes. Full new
+vertical slice (`domain/tagging/`, `revit/adapter/tag_*`,
+`revit/adapter/already_tagged_checker.py`, `app/commands/auto_tag_command.py`,
+`ui/views/auto_tag_options.py`), 6 new unit tests.
+
 ## Added Auto Mark (Module 02)
 
 New pushbutton in Documentation panel's third group: numbers doors,

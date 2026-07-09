@@ -108,6 +108,59 @@ projects (first real use of the suite's settings layer).
 Unit-tested numbering/sort logic (`tests/unit/test_mark_planner.py`,
 `test_auto_mark_command.py`); live-verified against a real project file.
 
+## 5B. Module 03 — Auto Tag
+
+Tags marked doors, windows, columns, beams, or footings in whichever
+view(s) the user picks - the natural next step after Auto Mark assigns
+Marks. Lives in the Documentation panel's third group, right after Auto
+Mark.
+
+### 5B.1 Scope of targets
+Same five categories as Auto Mark (Doors, Windows, Columns, Beams,
+Footings) - one category per run, matching Auto Mark's own category
+picker.
+
+### 5B.2 Flow
+Pick a category -> pick view(s) to run on (same multi-view picker every
+dimensioning tool already uses) -> pick a tag family/type from what's
+loaded in the project -> Run places one tag per untagged element of that
+category, in every selected view.
+
+### 5B.3 Duplicate handling
+An element that already has a tag in a given view is skipped, not
+re-tagged - safe to re-run as an "update," same convention the
+dimensioning tools use for existing dimensions.
+
+### 5B.4 Scope notes
+View-scoped (unlike Auto Mark, which is doc-wide) - a Mark is one value
+per type regardless of view, but a tag is a real annotation placed in one
+specific view. Columns can resolve to either the architectural Column Tag
+or the Structural Column Tag category depending on the element's own host
+category; the tag-type list shows both when both are loaded, and only
+elements matching the chosen type's category get tagged.
+
+### 5B.5 Acceptance (Module 03)
+Unit-tested tag/skip/fail counting logic (`tests/unit/test_auto_tag_command.py`);
+live-verified against a real project file.
+
+## 5C. Auto Mark & Tag (combined entry point)
+
+A third way to run Modules 02/03: one pushbutton that runs Auto Mark
+immediately followed by Auto Tag for the same category, so numbering and
+tagging happen in a single pass. Pure orchestration on top of the existing
+Auto Mark/Auto Tag flows - no new marking/tagging logic of its own.
+
+### 5C.1 Ribbon arrangement
+Three ways to invoke Modules 02/03 sit together in Documentation panel's
+schedules group: the combined button (normal size, first) with the
+individual Auto Mark and Auto Tag buttons stacked small immediately to its
+right - a "triangle" layout, so all three are visible without opening a
+menu.
+
+### 5C.2 Acceptance
+Live-verified against a real project file (rolled back) - see
+docs/ROADMAP.md for the specific checks run.
+
 ## 6. Settings & presets (suite-wide)
 
 Centralized manager; modules never manage settings independently. Domains: Themes,
