@@ -10,7 +10,7 @@ IronPython 2.7.
 
 from pyrevit import DB, forms
 
-_LOAD_LABEL = u"⬇  Load family from file (.rfa)…"
+from bkbim.ui.views.family_symbol_picker import show_family_symbol_picker
 
 
 def _name(el):
@@ -61,18 +61,8 @@ def pick_family_symbol(doc, categories, title):
     categories: list of DB.BuiltInCategory to list types from.
     Returns a FamilySymbol, or None if cancelled.
     """
-    while True:
-        symbols = collect_symbols(doc, categories)
-        labels = sorted(symbols.keys())
-        choice = forms.SelectFromList.show(
-            [_LOAD_LABEL] + labels,
-            title=title,
-            default=(labels[0] if labels else _LOAD_LABEL),
-            multiselect=False,
-        )
-        if not choice:
-            return None
-        if choice == _LOAD_LABEL:
-            load_family_from_file(doc)
-            continue  # re-list so the newly loaded types appear
-        return symbols[choice]
+    return show_family_symbol_picker(
+        title,
+        lambda: collect_symbols(doc, categories),
+        lambda: load_family_from_file(doc),
+    )

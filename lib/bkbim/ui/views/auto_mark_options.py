@@ -20,12 +20,55 @@ import clr
 clr.AddReference("PresentationFramework")
 
 from System.Windows import (
-    CornerRadius, FontWeights, GridLength, GridUnitType, Thickness, VerticalAlignment,
+    CornerRadius, FontWeights, GridLength, GridUnitType, Thickness, Visibility, VerticalAlignment,
 )
 from System.Windows.Controls import Border, ColumnDefinition, Grid, StackPanel, TextBlock, TextBox
+from System.Windows.Documents import Run
+from System.Windows.Media import Color, SolidColorBrush
 from pyrevit import forms
 
-from bkbim.domain.marking.mark_planner import sorted_type_groups
+from bkbim.domain.marking.mark_planner import (
+    MODE_SIZE_AND_REINFORCEMENT, MODE_SIZE_ONLY, reinforcement_sorted_groups, sorted_type_groups,
+)
+from bkbim.domain.marking.reinforcement_signature import (
+    SOURCE_MODELED_REBAR, SOURCE_NAVIATE_TEXT, SOURCE_NONE, SOURCE_TEKLA_TEXT,
+)
+from bkbim.ui.tokens import resolve_tokens_path
+
+# Product owner, 2026-07-15: "how do i know if it is using tekla exported
+# text, nv rebar or modelled rebar? make me notice that difference when
+# marking." Color-coded by trust level, not just labeled - modeled rebar
+# is the most reliable (real geometry, not an export snapshot), exported
+# text least (product owner's own words: "the export data isn't always
+# correct"), no-data is neutral. No matching semantic tokens exist yet in
+# Tokens.xaml (only Brand/Text/Surface/Border) - defined here rather than
+# adding new global tokens for a need that's localized to this one window.
+_SOURCE_COLORS = {
+    SOURCE_MODELED_REBAR: Color.FromRgb(0x1B, 0x8A, 0x5A),   # green - most trusted
+    SOURCE_TEKLA_TEXT: Color.FromRgb(0xC2, 0x6A, 0x00),      # amber - exported text
+    SOURCE_NAVIATE_TEXT: Color.FromRgb(0xC2, 0x6A, 0x00),    # amber - exported text
+    SOURCE_NONE: Color.FromRgb(0x8A, 0x8A, 0x8A),            # gray - no rebar data
+}
+_MIXED_SOURCE_COLOR = Color.FromRgb(0x6B, 0x46, 0xC1)  # purple - flags a group blending 2+ sources
+
+
+def _source_run(sources):
+    """A colored Run naming the reinforcement data source(s) for one
+    group. Usually one source; if a group blends more than one (a modeled-
+    rebar instance and a text-only instance landed on the identical real
+    design and merged - see MarkReinforcementGroup's own docstring), shows
+    all of them in a distinct "mixed" color rather than picking just one
+    and hiding the blend.
+    """
+    if not sources:
+        text, color = SOURCE_NONE, _SOURCE_COLORS[SOURCE_NONE]
+    elif len(sources) == 1:
+        text, color = sources[0], _SOURCE_COLORS.get(sources[0], _MIXED_SOURCE_COLOR)
+    else:
+        text, color = u" + ".join(sources), _MIXED_SOURCE_COLOR
+    run = Run(u"[{0}]".format(text))
+    run.Foreground = SolidColorBrush(color)
+    return run
 
 
 def _format_dim(value_mm):
@@ -38,20 +81,23 @@ def _format_dim(value_mm):
 
 
 class AutoMarkOptionsResult(object):
-    def __init__(self, prefixes):
+    def __init__(self, prefixes, mode=MODE_SIZE_ONLY):
         self.prefixes = prefixes  # dict {family_name: prefix string}
+        self.mode = mode
 
 
 class _FamilyRow(object):
     def __init__(self, family_group, prefix_box, type_rows):
         self.family_group = family_group
         self.prefix_box = prefix_box
-        self.type_rows = type_rows  # list of (MarkTypeGroup, TextBlock)
+        self.type_rows = type_rows  # list of (MarkTypeGroup, container StackPanel)
 
 
 class AutoMarkOptionsWindow(forms.WPFWindow):
-    def __init__(self, category, dimension_a_label, dimension_b_label, family_groups, default_prefixes):
+    def __init__(self, category, dimension_a_label, dimension_b_label, family_groups, default_prefixes,
+                 supports_reinforcement=False, default_mode=MODE_SIZE_ONLY):
         xaml_path = os.path.join(os.path.dirname(__file__), "AutoMarkOptions.xaml")
+        self.merge_resource_dict(resolve_tokens_path())
         forms.WPFWindow.__init__(self, xaml_path)
 
         self.result = None
@@ -65,9 +111,20 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
             u"largest to smallest, restarting the count at 1 per family."
         ).format(dimension_a_label, dimension_b_label)
 
+        # Categories with no rebar concept (Doors/Windows) never show the
+        # grouping-mode choice at all, rather than showing a mode with no
+        # effect on them.
+        if supports_reinforcement:
+            self.ModeGroupPanel.Visibility = Visibility.Visible
+            self.SizeAndReinforcementRadio.IsChecked = (default_mode == MODE_SIZE_AND_REINFORCEMENT)
+            self.SizeOnlyRadio.IsChecked = (default_mode != MODE_SIZE_AND_REINFORCEMENT)
+        else:
+            self.ModeGroupPanel.Visibility = Visibility.Collapsed
+
         surface_brush = self.FindResource(u"Surface.Raised")
         border_brush = self.FindResource(u"Border.Default")
         text_secondary_brush = self.FindResource(u"Text.Secondary")
+        self._text_secondary_brush = text_secondary_brush
 
         # Alphabetical so re-opening the window doesn't reshuffle rows.
         ordered_families = sorted(family_groups, key=lambda fg: fg.family_name.lower())
@@ -76,8 +133,17 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
                 family_group, default_prefixes, surface_brush, border_brush, text_secondary_brush)
             self.FamilyGroupsPanel.Children.Add(row)
 
+        self.SizeOnlyRadio.Checked += self._on_mode_changed
+        self.SizeAndReinforcementRadio.Checked += self._on_mode_changed
         self.RunButton.Click += self._on_run
         self.CancelButton.Click += self._on_cancel
+
+    def _current_mode(self):
+        return MODE_SIZE_AND_REINFORCEMENT if self.SizeAndReinforcementRadio.IsChecked else MODE_SIZE_ONLY
+
+    def _on_mode_changed(self, sender, args):
+        for i in range(len(self._family_rows)):
+            self._update_family_preview(i)
 
     def _build_family_row(self, family_group, default_prefixes, surface_brush, border_brush, text_secondary_brush):
         border = Border()
@@ -123,11 +189,10 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
 
         type_rows = []
         for type_group in sorted_type_groups(family_group.type_groups):
-            label = TextBlock()
-            label.Margin = Thickness(0, 6, 0, 0)
-            label.FontSize = 12
-            outer.Children.Add(label)
-            type_rows.append((type_group, label))
+            container = StackPanel()
+            container.Margin = Thickness(0, 6, 0, 0)
+            outer.Children.Add(container)
+            type_rows.append((type_group, container))
 
         border.Child = outer
 
@@ -146,17 +211,59 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
     def _update_family_preview(self, family_index):
         # One mark per type, shared by every instance of it (product owner:
         # "if the family name and type is the same, they should have the
-        # same mark") - so the preview is a single value per row, not a
-        # range, and n counts TYPES, not instances.
+        # same mark") - so the preview is a single value per row (unless
+        # size+reinforcement mode splits it into lettered sub-group rows -
+        # product owner, 2026-07-14: "add a letter suffix... B1-A and
+        # B1-B") - n counts TYPES, not instances.
         row = self._family_rows[family_index]
         prefix = (row.prefix_box.Text or u"").strip()
+        mode = self._current_mode()
         n = 0
-        for type_group, label in row.type_rows:
+        for type_group, container in row.type_rows:
             n += 1
-            mark_text = u"(no prefix - skipped)" if not prefix else u"{0}{1}".format(prefix, n)
-            label.Text = u"{0}    {1} x {2} mm    {3} pcs    {4}".format(
+            container.Children.Clear()
+            base_mark = u"(no prefix - skipped)" if not prefix else u"{0}{1}".format(prefix, n)
+
+            reinforcement_groups = type_group.reinforcement_groups
+
+            # Aggregate source badge for the header line (product owner,
+            # 2026-07-15: "make me notice that difference when marking") -
+            # shown regardless of mode, since the underlying rebar data was
+            # read either way; union of every sub-group's sources for this
+            # type, first-appearance order.
+            aggregate_sources = []
+            if reinforcement_groups:
+                for sub_group in reinforcement_groups:
+                    for source in sub_group.sources:
+                        if source not in aggregate_sources:
+                            aggregate_sources.append(source)
+
+            header_line = TextBlock()
+            header_line.FontSize = 12
+            header_line.Inlines.Add(Run(u"{0}    {1} x {2} mm    {3} pcs    ".format(
                 type_group.type_name, _format_dim(type_group.dimension_a_mm),
-                _format_dim(type_group.dimension_b_mm), type_group.instance_count, mark_text)
+                _format_dim(type_group.dimension_b_mm), type_group.instance_count)))
+            header_line.Inlines.Add(_source_run(aggregate_sources))
+            container.Children.Add(header_line)
+
+            if mode == MODE_SIZE_AND_REINFORCEMENT and reinforcement_groups and len(reinforcement_groups) > 1:
+                for i, sub_group in enumerate(reinforcement_sorted_groups(reinforcement_groups)):
+                    letter = chr(ord(u"A") + i) if i < 26 else u"?"
+                    sub_line = TextBlock()
+                    sub_line.FontSize = 11
+                    sub_line.Margin = Thickness(12, 2, 0, 0)
+                    sub_line.Foreground = self._text_secondary_brush
+                    mark_text = base_mark if not prefix else u"{0}-{1}".format(base_mark, letter)
+                    sub_line.Inlines.Add(Run(u"{0} pcs    {1}    [{2}]    ".format(
+                        sub_group.instance_count, mark_text, sub_group.signature)))
+                    sub_line.Inlines.Add(_source_run(sub_group.sources))
+                    container.Children.Add(sub_line)
+            else:
+                mark_line = TextBlock()
+                mark_line.FontSize = 12
+                mark_line.Margin = Thickness(12, 2, 0, 0)
+                mark_line.Text = base_mark
+                container.Children.Add(mark_line)
 
     def _on_run(self, sender, args):
         prefixes = {}
@@ -164,7 +271,7 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
             prefix = (row.prefix_box.Text or u"").strip()
             if prefix:
                 prefixes[row.family_group.family_name] = prefix
-        self.result = AutoMarkOptionsResult(prefixes=prefixes)
+        self.result = AutoMarkOptionsResult(prefixes=prefixes, mode=self._current_mode())
         self.Close()
 
     def _on_cancel(self, sender, args):
@@ -172,12 +279,14 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
         self.Close()
 
 
-def show_auto_mark_options(category, dimension_a_label, dimension_b_label, family_groups, default_prefixes):
+def show_auto_mark_options(category, dimension_a_label, dimension_b_label, family_groups, default_prefixes,
+                            supports_reinforcement=False, default_mode=MODE_SIZE_ONLY):
     """Shows the modal Auto Mark review window.
 
     Returns an AutoMarkOptionsResult, or None if the user cancelled.
     """
     window = AutoMarkOptionsWindow(
-        category, dimension_a_label, dimension_b_label, family_groups, default_prefixes)
+        category, dimension_a_label, dimension_b_label, family_groups, default_prefixes,
+        supports_reinforcement=supports_reinforcement, default_mode=default_mode)
     window.ShowDialog()
     return window.result

@@ -19,7 +19,7 @@ Openings, Grid Dimensions, Structural Elements, or Slab Dimensions.
 from Autodesk.Revit.DB import BuiltInCategory, FilteredElementCollector, Grid, ViewDiscipline, ViewPlan, Wall
 from pyrevit import forms
 
-from bkbim.domain.standards.standard import default_standard
+from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.grid_dimension_flow import run_grid_dimension_flow
 from bkbim.revit.adapter.structural_dimension_flow import (
     CATEGORY_COLUMN,
@@ -148,7 +148,7 @@ def main():
     if choice is None:
         return  # user cancelled
 
-    standard = default_standard()
+    standard = load_office_standard()
     _RUNNERS[choice](standard)
 
 

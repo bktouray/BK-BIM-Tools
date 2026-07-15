@@ -54,6 +54,7 @@ from Autodesk.Revit.DB import FilteredElementCollector, Grid, Transaction
 from pyrevit import forms
 
 from bkbim.app.commands import auto_slab_outline_dimension_command, auto_structural_dimension_command
+from bkbim.core.tool_memory import recall, remember
 from bkbim.domain.dimensioning.column_grid_planner import MODE_OVERALL_ONLY
 from bkbim.revit.adapter.dimension_type_reader import list_linear_dimension_types
 from bkbim.revit.adapter.dimension_writer import DimensionWriter
@@ -74,6 +75,7 @@ from bkbim.revit.adapter.structural_type_reader import (
 )
 from bkbim.revit.adapter.view_selection_prompt import pick_target_views
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.options_memory import to_remembered
 from bkbim.ui.views.slab_dimension_options import show_slab_dimension_options
 from bkbim.ui.views.structural_category_icons import structural_category_icon
 from bkbim.ui.views.structural_dimension_options import show_structural_dimension_options
@@ -83,6 +85,24 @@ CATEGORIES = [CATEGORY_COLUMN, CATEGORY_BEAM, CATEGORY_FOOTING, CATEGORY_SLAB]
 
 _TRANSACTION_LABEL = u"Auto Dimension Structural Elements"
 _SLAB_OUTLINE_TRANSACTION_LABEL = u"Auto Dimension Slab Outline"
+
+
+def _offset_key(category):
+    # Per-category (Column/Beam/Footing/Slab preferences are independent -
+    # tuning one shouldn't silently change what the others remember).
+    return u"structural_dimension.{0}.offset_mm".format(category.lower())
+
+
+def _gap_key(category):
+    return u"structural_dimension.{0}.gap_mm".format(category.lower())
+
+
+def _style_key(category):
+    return u"structural_dimension.{0}.dimension_type_name".format(category.lower())
+
+
+def _types_key(category):
+    return u"structural_dimension.{0}.selected_type_names".format(category.lower())
 
 
 def choose_category():
@@ -130,17 +150,30 @@ def _run_category(doc, target_views, standard, category, title):
         forms.alert(u"No grids found in the selected view(s).", title=title)
         return
 
+    default_offset_mm = recall(_offset_key(category), default=standard.structural_chain_offset_mm, doc=doc)
+    default_gap_mm = recall(_gap_key(category), default=standard.structural_chain_gap_mm, doc=doc)
+    default_style_name = recall(_style_key(category), doc=doc)
+    default_type_names = recall(_types_key(category), doc=doc)
+
     dimension_types = list_linear_dimension_types(doc)
     options = show_structural_dimension_options(
         dimension_types, list(combined_types.values()), type_name,
-        standard.structural_chain_offset_mm, standard.structural_chain_gap_mm,
-        category_label=category)
+        default_offset_mm, default_gap_mm, category_label=category,
+        default_dimension_type_name=default_style_name,
+        default_selected_type_names=default_type_names)
     if options is None:
         return  # user cancelled
 
     standard.structural_chain_offset_mm = options.offset_mm
     standard.offset_first_mm = options.offset_mm
     standard.structural_chain_gap_mm = options.gap_mm
+    remember(_offset_key(category), options.offset_mm, doc=doc)
+    remember(_gap_key(category), options.gap_mm, doc=doc)
+    if options.dimension_type is not None:
+        remember(_style_key(category), to_remembered(
+            options.dimension_type, type_name, lambda dt: element_id_token(dt.Id)), doc=doc)
+    remember(_types_key(category), [
+        to_remembered(st, type_name, lambda t: element_id_token(t.Id)) for st in options.selected_types], doc=doc)
     selected_type_keys = set(element_id_token(st.Id) for st in options.selected_types)
 
     results = run_across_views(
@@ -177,14 +210,26 @@ def _run_slab(doc, target_views, standard, title):
         forms.alert(u"No slabs found in the selected view(s).", title=title)
         return
 
+    default_offset_mm = recall(_offset_key(CATEGORY_SLAB), default=standard.structural_chain_offset_mm, doc=doc)
+    default_style_name = recall(_style_key(CATEGORY_SLAB), doc=doc)
+    default_type_names = recall(_types_key(CATEGORY_SLAB), doc=doc)
+
     dimension_types = list_linear_dimension_types(doc)
     options = show_slab_dimension_options(
-        dimension_types, list(combined_types.values()), type_name, standard.structural_chain_offset_mm)
+        dimension_types, list(combined_types.values()), type_name, default_offset_mm,
+        default_dimension_type_name=default_style_name,
+        default_selected_type_names=default_type_names)
     if options is None:
         return  # user cancelled
 
     standard.structural_chain_offset_mm = options.offset_mm
     standard.offset_first_mm = options.offset_mm
+    remember(_offset_key(CATEGORY_SLAB), options.offset_mm, doc=doc)
+    if options.dimension_type is not None:
+        remember(_style_key(CATEGORY_SLAB), to_remembered(
+            options.dimension_type, type_name, lambda dt: element_id_token(dt.Id)), doc=doc)
+    remember(_types_key(CATEGORY_SLAB), [
+        to_remembered(st, type_name, lambda t: element_id_token(t.Id)) for st in options.selected_types], doc=doc)
     selected_type_keys = set(element_id_token(st.Id) for st in options.selected_types)
 
     if options.mode == MODE_OVERALL_ONLY:

@@ -1,0 +1,109 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Column Options"
+    Width="480"
+    SizeToContent="Height"
+    MinWidth="420" MinHeight="480"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <!-- Color brushes (Brand.Primary etc.) come from the shared
+         ui/themes/Tokens.xaml, merged in code-behind before this file is
+         parsed - see bkbim/ui/tokens.py. -->
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleText" Text="Column Options" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText"
+                       Text="Detected column locations - confirm the levels and map each size to a family type."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,0"/>
+
+        <!-- Levels -->
+        <StackPanel Grid.Row="2" Margin="0,16,0,0">
+            <Label Content="Start Level (base)"/>
+            <ComboBox x:Name="StartLevelCombo" Height="28"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <Label Content="Stop Level (top)"/>
+            <ComboBox x:Name="StopLevelCombo" Height="28"/>
+        </StackPanel>
+
+        <!-- Shared base family for Auto-generate -->
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <Label Content="Base family (used when a size below is set to Auto-generate)"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="90"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="BaseFamilyText" Grid.Column="0" Text="(no base family chosen)"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <Button x:Name="ChooseBaseFamilyButton" Grid.Column="1" Content="Choose…" Margin="0"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- Material -->
+        <StackPanel Grid.Row="5" Margin="0,12,0,0">
+            <Label Content="Material"/>
+            <ComboBox x:Name="MaterialCombo" Height="28"/>
+        </StackPanel>
+
+        <!-- Size groups, built programmatically in code-behind -->
+        <StackPanel Grid.Row="6" Margin="0,16,0,0">
+            <Label Content="Size groups"/>
+            <TextBlock Text="Map each detected column section to an existing family type, or leave it set to Auto-generate to size the base family above to that section."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+        </StackPanel>
+        <ScrollViewer Grid.Row="7" Height="220" Margin="0,0,0,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="SizeGroupsPanel"/>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Run" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

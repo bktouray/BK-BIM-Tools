@@ -3,3 +3,4 @@
 layout:
   - CountSelected
   - ToggleGridExtent
+  - RenumberGrids

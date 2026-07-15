@@ -1,8 +1,13 @@
 title: CAD to Revit
+# Redesigned 2026-07-15 from 6 full-size buttons side by side (a lot of
+# ribbon width) into two 3-button stacks, grouped in modeling order:
+# Stack A (GridColumnWallStack, setting-out & structure) runs Grid -> Column
+# -> Wall - lay out the grid, place the vertical structure on it, then
+# enclose with walls. Stack B (FloorDoorWindowStack, envelope & openings)
+# runs Floor -> Door -> Window - the horizontal envelope first, then the two
+# opening types that host into those walls. Each button still opens its own
+# themed options window (lib/bkbim/ui/views/*Options.xaml) for post-scan
+# decisions - only the ribbon layout changed here.
 layout:
-  - AutoColumn
-  - AutoWall
-  - AutoDoor
-  - AutoWindow
-  - AutoFloor
-  - AutoGrid
+  - GridColumnWallStack
+  - FloorDoorWindowStack

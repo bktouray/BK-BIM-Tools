@@ -20,7 +20,7 @@ several views at once - you'll be asked after Run.
 from Autodesk.Revit.DB import ViewPlan
 from pyrevit import forms
 
-from bkbim.domain.standards.standard import default_standard
+from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.wall_dimension_flow import run_wall_dimension_flow
 
 doc = __revit__.ActiveUIDocument.Document
@@ -33,7 +33,7 @@ def main():
         forms.alert(u"Please open a plan view.", title=__title__)
         return
 
-    standard = default_standard()
+    standard = load_office_standard()
     run_wall_dimension_flow(doc, uidoc, view, standard, __title__)
 
 

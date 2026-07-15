@@ -13,16 +13,21 @@ import datetime
 from pyrevit import forms, script
 
 from bkbim.boq import rvt, extractors, pybridge
+from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.boq_master_export_options import show_master_export_options
+from bkbim.ui.views.boq_result import show_boq_result
 
 logger = script.get_logger()
 
 DEFAULT_NAME = "BKDesigns_BOQ"
 
 
-def _scope_prompt():
-    choice = forms.CommandSwitchWindow.show(
-        ["All  (used + unused)", "Used only"],
-        message="What should the export include?",
+def _scope_prompt(labels):
+    subtitle = u"What should the {} export include?".format(
+        u", ".join(labels) if len(labels) <= 3 else u"{} categories".format(len(labels)))
+    choice = show_category_picker(
+        u"Export Scope", subtitle,
+        [u"All (used + unused)", u"Used only"],
     )
     if not choice:
         return None
@@ -40,13 +45,13 @@ def _save_prompt(default_name):
     if not path:
         return None, None
     if os.path.exists(path):
-        choice = forms.alert(
-            "A workbook already exists here:\n\n{}\n\n"
-            "Merge will update matched rows by Revit UniqueId, add new ones, "
-            "flag removed ones, and KEEP any extra columns you/the QS added "
-            "(rates, prices, notes).".format(os.path.basename(path)),
-            title="File exists",
-            options=["Merge into existing file", "Create new timestamped file"],
+        choice = show_category_picker(
+            u"File Exists",
+            u"A workbook already exists here:\n{}\n\n"
+            u"Merge will update matched rows by Revit UniqueId, add new ones, "
+            u"flag removed ones, and KEEP any extra columns you/the QS added "
+            u"(rates, prices, notes).".format(os.path.basename(path)),
+            [u"Merge into existing file", u"Create new timestamped file"],
         )
         if not choice:
             return None, None
@@ -86,7 +91,7 @@ def run_export(labels, default_name=None):
         forms.alert("No active Revit document.", title="BOQ Export", ok=True)
         return
 
-    scope = _scope_prompt()
+    scope = _scope_prompt(labels)
     if scope is None:
         return
 
@@ -121,18 +126,13 @@ def run_export(labels, default_name=None):
                     title="BOQ Export", ok=True)
         return
 
-    lines = ["Saved to:", path, ""]
+    lines = []
     for item in summary:
         sheet_name, n, counts = item[0], item[1], item[2]
         detail = ", ".join("{} {}".format(v, k) for k, v in counts.items() if k)
-        lines.append("- {}: {} rows{}".format(
-            sheet_name, n, ("  ({})".format(detail) if detail else "")))
-    if forms.alert("\n".join(lines), title="Export complete",
-                   options=["Open folder", "Done"]) == "Open folder":
-        try:
-            os.startfile(os.path.dirname(path))
-        except Exception:
-            pass
+        lines.append(u"{}: {} rows{}".format(
+            sheet_name, n, (u"  ({})".format(detail) if detail else "")))
+    show_boq_result(u"Export Complete", path, lines)
 
 
 def run_split():
@@ -149,23 +149,13 @@ def run_split():
     except Exception as e:
         forms.alert("Split failed:\n{}".format(e), title="BOQ Export", ok=True)
         return
-    if forms.alert("Wrote {} files to:\n{}".format(len(written), out),
-                   title="Split complete",
-                   options=["Open folder", "Done"]) == "Open folder":
-        try:
-            os.startfile(out)
-        except Exception:
-            pass
+    lines = [os.path.basename(w) for w in written]
+    show_boq_result(u"Split Complete", out, lines)
 
 
 def run_master():
     """Master export: multi-select categories, then export."""
-    labels = forms.SelectFromList.show(
-        [lbl for lbl, _ in extractors.REGISTRY],
-        title="Select categories to export",
-        multiselect=True,
-        button_name="Export selected",
-    )
+    labels = show_master_export_options([lbl for lbl, _ in extractors.REGISTRY])
     if not labels:
         return
     run_export(list(labels), default_name="BKDesigns_BOQ")

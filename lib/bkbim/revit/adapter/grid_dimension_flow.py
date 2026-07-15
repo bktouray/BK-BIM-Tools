@@ -34,6 +34,7 @@ from Autodesk.Revit.DB import BuiltInCategory, FilteredElementCollector, Grid, T
 from pyrevit import forms
 
 from bkbim.app.commands import auto_grid_dimension_command
+from bkbim.core.tool_memory import recall, remember
 from bkbim.revit.adapter.dimension_type_reader import list_linear_dimension_types
 from bkbim.revit.adapter.dimension_writer import DimensionWriter
 from bkbim.revit.adapter.element_naming import type_name
@@ -42,10 +43,15 @@ from bkbim.revit.adapter.failure_policy import ScopedFailurePolicy
 from bkbim.revit.adapter.multi_view_batch import alert_batch_results, run_across_views
 from bkbim.revit.adapter.reference_provider import RevitReferenceProvider
 from bkbim.revit.adapter.selection_reader import RevitSelectionReader
+from bkbim.revit.adapter.stable_representation import element_id_token
 from bkbim.revit.adapter.view_selection_prompt import pick_target_views
 from bkbim.ui.views.grid_dimension_options import show_grid_dimension_options
+from bkbim.ui.views.options_memory import to_remembered
 
 _TRANSACTION_LABEL = u"Auto Grid Dimension"
+_OFFSET_KEY = u"grid_dimension.offset_mm"
+_GAP_KEY = u"grid_dimension.gap_mm"
+_STYLE_KEY = u"grid_dimension.dimension_type_name"
 
 
 def _detected_elements(doc, view):
@@ -73,14 +79,28 @@ def run_grid_dimension_flow(doc, view, standard, title, target_views=None):
         forms.alert(u"No grids, walls, or columns found in the selected view(s).", title=title)
         return
 
+    # Tool Memory (PROJECT layer - a chosen offset/gap is a project habit):
+    # last run's actual values win over the Office Standard default, which
+    # only applies the very first time this tool runs on a given project.
+    default_offset_mm = recall(_OFFSET_KEY, default=standard.grid_chain_offset_mm, doc=doc)
+    default_gap_mm = recall(_GAP_KEY, default=standard.grid_chain_gap_mm, doc=doc)
+
+    default_style_name = recall(_STYLE_KEY, doc=doc)
+
     dimension_types = list_linear_dimension_types(doc)
     options = show_grid_dimension_options(
-        dimension_types, type_name, standard.grid_chain_offset_mm, standard.grid_chain_gap_mm)
+        dimension_types, type_name, default_offset_mm, default_gap_mm,
+        default_dimension_type_name=default_style_name)
     if options is None:
         return  # user cancelled
 
     standard.grid_chain_offset_mm = options.offset_mm
     standard.grid_chain_gap_mm = options.gap_mm
+    remember(_OFFSET_KEY, options.offset_mm, doc=doc)
+    remember(_GAP_KEY, options.gap_mm, doc=doc)
+    if options.dimension_type is not None:
+        remember(_STYLE_KEY, to_remembered(
+            options.dimension_type, type_name, lambda dt: element_id_token(dt.Id)), doc=doc)
 
     results = run_across_views(
         doc, target_views, _TRANSACTION_LABEL,

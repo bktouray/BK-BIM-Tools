@@ -7,19 +7,13 @@
     MinWidth="480" MinHeight="360"
     WindowStartupLocation="CenterScreen"
     ResizeMode="CanResizeWithGrip"
-    Background="#FFFFFF"
+    Background="{StaticResource Surface.Base}"
     FontFamily="Segoe UI">
 
-    <!-- Inline tokens for this window (UX_SPEC.md Sec 2), matching every other
-         options window. Migrate to a shared ui/themes/Tokens.xaml once a fourth
-         window needs the same values (ADR-0002). -->
+    <!-- Color brushes (Brand.Primary etc.) come from the shared
+         ui/themes/Tokens.xaml, merged in code-behind before this file is
+         parsed - see bkbim/ui/tokens.py. -->
     <Window.Resources>
-        <SolidColorBrush x:Key="Brand.Primary" Color="#1A56DB"/>
-        <SolidColorBrush x:Key="Text.Primary" Color="#111417"/>
-        <SolidColorBrush x:Key="Text.Secondary" Color="#5B6572"/>
-        <SolidColorBrush x:Key="Surface.Raised" Color="#F7F8FA"/>
-        <SolidColorBrush x:Key="Border.Default" Color="#DFE3E8"/>
-
         <Style TargetType="TextBlock" x:Key="Caption">
             <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
             <Setter Property="FontSize" Value="11"/>
@@ -39,6 +33,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -53,14 +48,25 @@
 
         <Separator Grid.Row="1" Margin="0,16,0,0"/>
 
+        <!-- Grouping mode (Columns/Beams/Footings only - hidden via code-behind
+             for categories with no reinforcement concept, e.g. Doors/Windows) -->
+        <StackPanel x:Name="ModeGroupPanel" Grid.Row="2" Margin="0,16,0,0">
+            <Label Content="Grouping mode"/>
+            <RadioButton x:Name="SizeOnlyRadio" Content="Basic sizes only"
+                         GroupName="MarkMode" IsChecked="True" Margin="0,0,0,4"/>
+            <RadioButton x:Name="SizeAndReinforcementRadio"
+                         Content="Size and reinforcement - same size but different rebar gets a letter suffix (e.g. B1-A, B1-B)"
+                         GroupName="MarkMode"/>
+        </StackPanel>
+
         <!-- Family groups, built programmatically in code-behind -->
-        <ScrollViewer Grid.Row="2" Height="340" Margin="0,16,0,0"
+        <ScrollViewer Grid.Row="3" Height="340" Margin="0,16,0,0"
                       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="FamilyGroupsPanel"/>
         </ScrollViewer>
 
         <!-- Footer -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
             <Button x:Name="RunButton" Content="Run" IsDefault="True"
                     Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>

@@ -30,6 +30,16 @@
   Utilities, View Manager, Sheet Manager, Revision Manager, Export/Import Utilities.
 - **Settings:** Preferences, Presets, Office Standards, Logging, Updates, Licensing,
   Developer Mode.
+- **MEP (long-term platform, ADR-0004):** Sanitary Drainage shipped a real
+  pushbutton (room pick/highlight, wall detect/confirm, live-tested end-to-end)
+  then **paused 2026-07-10** in favor of **Water Supply (Cold/Hot Water,
+  active slice now)** — simpler (pressure-fed, pipe types already loaded).
+  See [architecture/MEP_SAD.md](architecture/MEP_SAD.md) and
+  [ADR-0004's update](ADR/0004-mep-vertical-slice-sanitary-first.md). Still
+  to come: Vent, Storm, Grey/Black Water, Rainwater Harvesting, Fire
+  Protection, Medical Gas, Gas, Hydronic, HVAC Ductwork, Cable Trays,
+  Electrical Conduits — each its own vertical slice; shared
+  routing/rule/sizing framework extracted only once a second discipline needs it.
 
 ## Immediate next deliverables
 

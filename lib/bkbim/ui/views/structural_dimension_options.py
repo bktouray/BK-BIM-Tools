@@ -11,7 +11,10 @@ import os
 from pyrevit import forms
 
 from bkbim.domain.dimensioning.column_grid_planner import MODE_CONTINUOUS_NO_GRID, MODE_GRID_AND_COLUMN
+from bkbim.revit.adapter.stable_representation import element_id_token
+from bkbim.ui.tokens import resolve_tokens_path
 from bkbim.ui.views.listbox_drag_select import enable_drag_multiselect
+from bkbim.ui.views.options_memory import dimension_style_index, select_remembered_types
 
 # Per-category wording (product owner, 2026-07-06: "personalize the contents of
 # each window to match the actual task" - the mode radio buttons were still
@@ -63,8 +66,9 @@ class StructuralDimensionOptionsResult(object):
 
 class StructuralDimensionOptionsWindow(forms.WPFWindow):
     def __init__(self, dimension_types, structural_types, type_name_fn, default_offset_mm, default_gap_mm,
-                 category_label=None):
+                 category_label=None, default_dimension_type_name=None, default_selected_type_names=None):
         xaml_path = os.path.join(os.path.dirname(__file__), "StructuralDimensionOptions.xaml")
+        self.merge_resource_dict(resolve_tokens_path())
         forms.WPFWindow.__init__(self, xaml_path)
 
         self._dimension_types = dimension_types
@@ -87,10 +91,13 @@ class StructuralDimensionOptionsWindow(forms.WPFWindow):
             self.ContinuousRadio.Content = text[u"mode_continuous"]
             self.TypesHelperText.Text = text[u"types_helper"]
 
+        id_token_fn = lambda t: element_id_token(t.Id)
+
         for dt in dimension_types:
             self.DimensionStyleCombo.Items.Add(type_name_fn(dt))
         if dimension_types:
-            self.DimensionStyleCombo.SelectedIndex = 0
+            self.DimensionStyleCombo.SelectedIndex = dimension_style_index(
+                dimension_types, type_name_fn, default_dimension_type_name, id_token_fn=id_token_fn)
 
         self.OffsetSlider.Value = default_offset_mm
         self.OffsetTextBox.Text = str(int(default_offset_mm))
@@ -99,10 +106,11 @@ class StructuralDimensionOptionsWindow(forms.WPFWindow):
 
         for st in structural_types:
             self.StructuralTypesList.Items.Add(type_name_fn(st))
-        # Default: every type selected, so behavior is unchanged unless the user
-        # deliberately narrows it - matches the wall-type filter's convention.
-        for i in range(self.StructuralTypesList.Items.Count):
-            self.StructuralTypesList.SelectedItems.Add(self.StructuralTypesList.Items[i])
+        # Default: every type selected unless a remembered subset exists
+        # (Tool Memory) - matches the wall-type filter's convention.
+        select_remembered_types(
+            self.StructuralTypesList, type_name_fn, structural_types, default_selected_type_names,
+            id_token_fn=id_token_fn)
 
         enable_drag_multiselect(self.StructuralTypesList)
 
@@ -164,13 +172,15 @@ class StructuralDimensionOptionsWindow(forms.WPFWindow):
 
 
 def show_structural_dimension_options(dimension_types, structural_types, type_name_fn,
-                                       default_offset_mm, default_gap_mm, category_label=None):
+                                       default_offset_mm, default_gap_mm, category_label=None,
+                                       default_dimension_type_name=None, default_selected_type_names=None):
     """Shows the modal options window.
 
     Returns a StructuralDimensionOptionsResult, or None if the user cancelled.
     """
     window = StructuralDimensionOptionsWindow(
         dimension_types, structural_types, type_name_fn, default_offset_mm, default_gap_mm,
-        category_label=category_label)
+        category_label=category_label, default_dimension_type_name=default_dimension_type_name,
+        default_selected_type_names=default_selected_type_names)
     window.ShowDialog()
     return window.result

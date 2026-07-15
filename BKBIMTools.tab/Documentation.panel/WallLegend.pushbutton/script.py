@@ -18,6 +18,7 @@ in any one wall type).
 
 from pyrevit import forms, script
 import bkd_walllegend as wl
+from bkbim.ui.views.wall_legend_options import show_wall_legend_options
 from Autodesk.Revit.DB import (
     FilteredElementCollector, View, ViewType, TextNoteType,
 )
@@ -31,69 +32,6 @@ WALL_VIEW_TYPES = (
     ViewType.AreaPlan, ViewType.Section, ViewType.Elevation,
     ViewType.Detail, ViewType.ThreeD,
 )
-
-
-def choose_source(cfg):
-    """Fill cfg['source'] (+ source_view_id / type_ids). Returns False on cancel."""
-    mode = forms.alert(
-        u"Where should the wall types come from?",
-        title=__title__,
-        options=[u"From a specific view", u"Used in whole model",
-                 u"Pick from list", u"All wall types"])
-    if not mode:
-        return False
-
-    if mode == u"From a specific view":
-        views = [v for v in FilteredElementCollector(doc).OfClass(View).ToElements()
-                 if (not v.IsTemplate) and v.ViewType in WALL_VIEW_TYPES]
-        vmap = {}
-        for v in views:
-            vmap[u"{0}  [{1}]".format(v.Name, v.ViewType)] = v
-        pick = forms.SelectFromList.show(
-            sorted(vmap.keys()),
-            title=u"Pick the view to read wall types from",
-            multiselect=False)
-        if not pick:
-            return False
-        cfg["source"] = "view"
-        cfg["source_view_id"] = wl.idv(vmap[pick].Id)
-
-    elif mode == u"Used in whole model":
-        cfg["source"] = "model"
-
-    elif mode == u"All wall types":
-        cfg["source"] = "all"
-
-    else:  # Pick from list
-        nmap = {}
-        for wt in FilteredElementCollector(doc).OfClass(wl.WallType).ToElements():
-            nmap[wl.name_of(wt)] = wt
-        picked = forms.SelectFromList.show(
-            sorted(nmap.keys()),
-            title=u"Select wall types for the legend",
-            multiselect=True)
-        if not picked:
-            return False
-        cfg["source"] = "list"
-        cfg["type_ids"] = [wl.idv(nmap[n].Id) for n in picked]
-
-    return True
-
-
-def choose_text_type(purpose):
-    tmap = {}
-    for t in FilteredElementCollector(doc).OfClass(TextNoteType).ToElements():
-        tmap[wl.name_of(t)] = t
-    if not tmap:
-        forms.alert(u"No text types in this model.", title=__title__)
-        return None
-    pick = forms.SelectFromList.show(
-        sorted(tmap.keys()),
-        title=u"Pick the text type for the {0}".format(purpose),
-        multiselect=False)
-    if not pick:
-        return None
-    return wl.idv(tmap[pick].Id)
 
 
 def main():
@@ -121,32 +59,35 @@ def main():
 
     cfg = wl.load_config(doc) or {}
 
-    if not choose_source(cfg):
+    views = sorted(
+        (v for v in FilteredElementCollector(doc).OfClass(View).ToElements()
+         if (not v.IsTemplate) and v.ViewType in WALL_VIEW_TYPES),
+        key=lambda v: v.Name)
+    wall_types = sorted(
+        FilteredElementCollector(doc).OfClass(wl.WallType).ToElements(),
+        key=wl.name_of)
+    text_types = sorted(
+        FilteredElementCollector(doc).OfClass(TextNoteType).ToElements(),
+        key=wl.name_of)
+
+    if not text_types:
+        forms.alert(u"No text types in this model.", title=__title__)
         return
 
-    title_type_id = choose_text_type(u"TITLE text")
-    if not title_type_id:
+    result = show_wall_legend_options(views, wall_types, text_types, wl.name_of, wl.idv, cfg)
+    if not result:
         return
-    label_type_id = choose_text_type(u"wall-type LABELS")
-    if not label_type_id:
-        return
-    cfg["title_type_id"] = title_type_id
-    cfg["label_type_id"] = label_type_id
 
-    title_text = forms.ask_for_string(
-        default=cfg.get("title_text", u"WALL TYPE LEGEND"),
-        prompt=u"Legend title:", title=__title__)
-    if title_text is None:
-        return
-    cfg["title_text"] = title_text
-
+    cfg["source"] = result.source
+    if result.source == u"view":
+        cfg["source_view_id"] = wl.idv(result.source_view.Id)
+    if result.source == u"list":
+        cfg["type_ids"] = [wl.idv(wt.Id) for wt in result.wall_types]
+    cfg["title_type_id"] = wl.idv(result.title_type.Id)
+    cfg["label_type_id"] = wl.idv(result.label_type.Id)
+    cfg["title_text"] = result.title_text
     cfg["legend_view_id"] = wl.idv(view.Id)
-
-    auto = forms.alert(
-        u"Auto-refresh this legend whenever you open it and the wall\n"
-        u"types have changed? (Uses these same choices silently.)",
-        title=__title__, yes=True, no=True)
-    cfg["auto"] = bool(auto)
+    cfg["auto"] = result.auto
 
     wl.save_config(doc, cfg)
 

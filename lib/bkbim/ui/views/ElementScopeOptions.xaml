@@ -1,0 +1,96 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools"
+    Width="420"
+    SizeToContent="Height"
+    MinWidth="380" MinHeight="260"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <!-- Branded replacement for the "auto-detect vs manually select" wizard
+         step shared by Floors to Footings and PCC Blinding (previously
+         forms.CommandSwitchWindow + forms.SelectFromList for the level).
+         Color brushes come from the shared ui/themes/Tokens.xaml, merged in
+         code-behind before this file is parsed - see bkbim/ui/tokens.py. -->
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Brand.Primary}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,16"/>
+
+        <!-- Mode -->
+        <StackPanel Grid.Row="2">
+            <RadioButton x:Name="AutoRadio" Content="Auto-detect from a level" GroupName="ScopeMode"/>
+            <RadioButton x:Name="ManualRadio" Content="Manually select" GroupName="ScopeMode"/>
+        </StackPanel>
+
+        <!-- Auto-detect: level combo -->
+        <StackPanel x:Name="LevelPanel" Grid.Row="3" Margin="0,8,0,0">
+            <Label Content="Level"/>
+            <ComboBox x:Name="LevelCombo" Height="28"/>
+        </StackPanel>
+
+        <!-- Manual select: instructions (shown only in manual mode) -->
+        <TextBlock x:Name="ManualHelpText" Grid.Row="4" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" Margin="0,8,0,0" Visibility="Collapsed"/>
+
+        <!-- Row 5 ("*") intentionally empty: absorbs extra vertical space so the
+             footer stays anchored near the bottom instead of floating mid-window
+             when the user resizes taller. -->
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" Style="{StaticResource SecondaryButton}" Margin="0"/>
+            <Button x:Name="ContinueButton" Content="Continue" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>

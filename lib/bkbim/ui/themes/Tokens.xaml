@@ -1,0 +1,29 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Shared design tokens (UX_SPEC.md Sec 2). Extracted 2026-07-12 from 8
+         windows that each inlined an identical copy (CategoryPicker,
+         GridDimensionOptions, StructuralDimensionOptions, SlabDimensionOptions,
+         WallOpeningDimensionOptions, ExteriorWallDimensionOptions,
+         AutoMarkOptions, AutoTagOptions) - ADR-0002's "extract once a second
+         consumer needs it" bar was satisfied 8 times over. Merged into each
+         window via bkbim.ui.tokens.TOKENS_PATH + WPFWindow.merge_resource_dict()
+         (see tokens.py for why, and why not a XAML-declared relative Source=).
+
+         Modules never hardcode hex - always bind to one of these names. -->
+    <!-- 2026-07-12: Text.Primary/Secondary unified to one color (#3B4453)
+         and Surface.Base set to #F5F5F7, per product owner's explicit
+         request to mirror Dark mode's own base/text pair in reverse - see
+         Tokens.Dark.xaml (Surface.Base #3B4453 / Text #F5F5F7). Only these
+         two tokens changed; Surface.Raised/Hover/Border.Default and
+         Brand.Primary are untouched, not requested. -->
+    <SolidColorBrush x:Key="Brand.Primary" Color="#1A56DB"/>
+    <SolidColorBrush x:Key="Text.Primary" Color="#3B4453"/>
+    <SolidColorBrush x:Key="Text.Secondary" Color="#3B4453"/>
+    <SolidColorBrush x:Key="Surface.Base" Color="#F5F5F7"/>
+    <SolidColorBrush x:Key="Surface.Raised" Color="#F7F8FA"/>
+    <SolidColorBrush x:Key="Surface.Hover" Color="#EEF2FF"/>
+    <SolidColorBrush x:Key="Border.Default" Color="#DFE3E8"/>
+
+</ResourceDictionary>

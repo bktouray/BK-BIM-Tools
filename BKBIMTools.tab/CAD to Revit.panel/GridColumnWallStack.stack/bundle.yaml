@@ -1,0 +1,9 @@
+# A .stack has no UI/title of its own - its children render as small
+# buttons stacked vertically (up to 3 per slot) within the parent panel.
+# Setting-out & structure, in modeling order: grids first, columns onto
+# those grids, walls to enclose. Paired with FloorDoorWindowStack.stack to
+# its right - see CAD to Revit.panel/bundle.yaml for the full rationale.
+layout:
+  - AutoGrid
+  - AutoColumn
+  - AutoWall

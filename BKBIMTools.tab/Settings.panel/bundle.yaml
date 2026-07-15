@@ -1,3 +1,6 @@
-# Settings panel (PRD §4). Buttons added as modules land: Preferences,
-# Presets, Office Standards, Updates, Licensing, Help.
-layout: []
+# Settings panel (PRD §4). One button opens the whole Settings window
+# (Settings platform design) - Office Standards is the first real page;
+# General/About/placeholder categories land inside the same window, not as
+# separate ribbon buttons - see docs/architecture (Settings platform design).
+layout:
+  - Settings

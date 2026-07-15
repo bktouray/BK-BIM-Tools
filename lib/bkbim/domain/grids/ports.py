@@ -15,3 +15,12 @@ class IGridExtentWriter(object):
         per-grid skip, not a fatal error for the whole run.
         """
         raise NotImplementedError
+
+
+class IGridRenumberWriter(object):
+    def set_name(self, grid_ref, new_name):
+        """Sets `grid_ref`'s Name to `new_name`. Raises on failure (e.g. a
+        name collision) - the caller counts that as a per-grid skip, not a
+        fatal error for the whole run.
+        """
+        raise NotImplementedError

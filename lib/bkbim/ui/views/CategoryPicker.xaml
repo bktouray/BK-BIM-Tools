@@ -7,22 +7,18 @@
     MinWidth="380" MinHeight="240"
     WindowStartupLocation="CenterScreen"
     ResizeMode="CanResizeWithGrip"
-    Background="#FFFFFF"
+    Background="{StaticResource Surface.Base}"
     FontFamily="Segoe UI">
 
     <!-- Branded replacement for pyRevit's default forms.CommandSwitchWindow
          (product owner, 2026-07-06: "I don't like the default pyRevit
          interface... make it nice"). Same visual language as every other
          options window in the suite - matches Wall & Opening / Structural /
-         Slab so picking a category doesn't feel like a different product. -->
+         Slab so picking a category doesn't feel like a different product.
+         Color brushes (Brand.Primary etc.) come from the shared
+         ui/themes/Tokens.xaml, merged in code-behind before this file is
+         parsed - see bkbim/ui/tokens.py. -->
     <Window.Resources>
-        <SolidColorBrush x:Key="Brand.Primary" Color="#1A56DB"/>
-        <SolidColorBrush x:Key="Text.Primary" Color="#111417"/>
-        <SolidColorBrush x:Key="Text.Secondary" Color="#5B6572"/>
-        <SolidColorBrush x:Key="Surface.Raised" Color="#F7F8FA"/>
-        <SolidColorBrush x:Key="Surface.Hover" Color="#EEF2FF"/>
-        <SolidColorBrush x:Key="Border.Default" Color="#DFE3E8"/>
-
         <Style TargetType="TextBlock" x:Key="Caption">
             <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
             <Setter Property="FontSize" Value="11"/>

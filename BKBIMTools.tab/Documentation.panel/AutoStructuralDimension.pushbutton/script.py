@@ -18,7 +18,7 @@ and mode. Optionally apply the same settings across several views at once.
 from Autodesk.Revit.DB import ViewPlan
 from pyrevit import forms
 
-from bkbim.domain.standards.standard import default_standard
+from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.structural_dimension_flow import choose_category, run_structural_dimension_flow
 
 doc = __revit__.ActiveUIDocument.Document
@@ -35,7 +35,7 @@ def main():
     if category is None:
         return  # user cancelled
 
-    standard = default_standard()
+    standard = load_office_standard()
     run_structural_dimension_flow(doc, view, standard, category, __title__)
 
 

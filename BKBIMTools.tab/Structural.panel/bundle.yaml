@@ -1,0 +1,22 @@
+title: Structural
+# Structural modeling panel (distinct from Documentation's structural
+# DIMENSIONING tools). First tool: Floors to Footings (converts floor-based
+# pad footings, e.g. imported from Tekla Structural Designer, into native
+# isolated foundations). Second: PCC Blinding (generates a blinding pad
+# under every isolated footing, offset outward + depth + material all
+# user-chosen). Third/Fourth/Fifth: Typical Columns/Beams/Footings (cuts
+# one detail section per typical size+reinforcement group, grouped by Mark;
+# requires Auto Mark to have been run first) - kept as 3 STANDALONE large
+# buttons, not a stack: product owner, 2026-07-15, tried a TypicalStack.stack
+# first, but Revit's ribbon genuinely can't show inline text next to a
+# 3-item vertical stack (icon + hover-tooltip only, confirmed by reading
+# pyRevit's own uimaker.py/ribbon.py source) - explicitly chose "3 standalone
+# large buttons" over a pulldown or icon-only stack once shown that
+# trade-off. More structural modeling tools land here later (Cover,
+# Material, ...) - product owner, 2026-07-14.
+layout:
+  - FloorsToFootings
+  - PCCBlinding
+  - TypicalColumns
+  - TypicalBeams
+  - TypicalFootings

@@ -18,6 +18,8 @@ from System.Windows import Thickness, VerticalAlignment
 from System.Windows.Controls import Button, Orientation, StackPanel, TextBlock
 from pyrevit import forms
 
+from bkbim.ui.tokens import resolve_tokens_path
+
 
 class CategoryPickerWindow(forms.WPFWindow):
     def __init__(self, title, subtitle, choices, icon_factory=None):
@@ -27,6 +29,7 @@ class CategoryPickerWindow(forms.WPFWindow):
         next to each label without every picker needing one.
         """
         xaml_path = os.path.join(os.path.dirname(__file__), "CategoryPicker.xaml")
+        self.merge_resource_dict(resolve_tokens_path())
         forms.WPFWindow.__init__(self, xaml_path)
 
         self.Title = u"BK BIM Tools - {0}".format(title)

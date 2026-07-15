@@ -11,13 +11,17 @@ title: BK BIM Tools
 # utilities"). Panels with no buttons yet are hidden by pyRevit
 # automatically (QAQC, AI, Settings stay listed here so they appear in the
 # right place once their first tool lands, rather than needing this
-# reordered later).
+# reordered later). Structural added 2026-07-14 (Floors to Footings) -
+# structural MODELING tools, distinct from Documentation's structural
+# DIMENSIONING tools.
 layout:
   - About
   - Documentation
   - CAD to Revit
   - BOQ Export
   - Modeling
+  - Structural
+  - MEP
   - QAQC
   - AI
   - Settings

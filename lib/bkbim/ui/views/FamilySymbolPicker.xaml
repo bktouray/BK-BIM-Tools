@@ -1,0 +1,90 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Choose Family"
+    Width="440"
+    SizeToContent="Height"
+    MinWidth="400" MinHeight="420"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <!-- Branded replacement for familyutils.pick_family_symbol's default
+         forms.SelectFromList (which baked a "Load family from file" entry
+         into the list itself). Shared by every automation tool that needs a
+         loadable family/type: Floors to Footings, PCC Blinding, Auto Column,
+         Auto Door/Window. Color brushes come from the shared
+         ui/themes/Tokens.xaml, merged in code-behind - see bkbim/ui/tokens.py. -->
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Brand.Primary}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock Text="Choose Family" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,16"/>
+
+        <!-- Search -->
+        <StackPanel Grid.Row="2">
+            <Label Content="Search"/>
+            <TextBox x:Name="SearchBox" Height="26" VerticalContentAlignment="Center" Padding="6,0"/>
+        </StackPanel>
+
+        <!-- Load from file -->
+        <Button x:Name="LoadFamilyButton" Grid.Row="3" Content="⬇  Load family from file (.rfa)…"
+                HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Margin="0,10,0,0"/>
+
+        <!-- Family : Type list -->
+        <ListBox x:Name="SymbolsList" Grid.Row="4" MinHeight="180" Margin="0,12,0,0"/>
+
+        <!-- Validation message -->
+        <TextBlock x:Name="ValidationText" Grid.Row="5" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed"/>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" Style="{StaticResource SecondaryButton}" Margin="0"/>
+            <Button x:Name="SelectButton" Content="Select" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>

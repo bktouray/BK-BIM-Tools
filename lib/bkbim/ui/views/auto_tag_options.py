@@ -14,6 +14,8 @@ import os
 
 from pyrevit import forms
 
+from bkbim.ui.tokens import resolve_tokens_path
+
 
 class AutoTagOptionsResult(object):
     def __init__(self, tag_type):
@@ -33,6 +35,7 @@ def _label_for(tag_type, distinct_category_names, type_name_fn):
 class AutoTagOptionsWindow(forms.WPFWindow):
     def __init__(self, tag_types, type_name_fn):
         xaml_path = os.path.join(os.path.dirname(__file__), "AutoTagOptions.xaml")
+        self.merge_resource_dict(resolve_tokens_path())
         forms.WPFWindow.__init__(self, xaml_path)
 
         self._tag_types = tag_types

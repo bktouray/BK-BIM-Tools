@@ -26,8 +26,9 @@ from Autodesk.Revit.DB import Transaction
 
 from bkbim.app.commands import auto_mark_command
 from bkbim.core.settings import LAYER_USER, get_settings
+from bkbim.domain.marking.mark_planner import MODE_SIZE_ONLY
 from bkbim.revit.adapter.mark_type_reader import (
-    CATEGORIES, DIMENSION_A_LABEL, DIMENSION_B_LABEL, read_family_groups,
+    CATEGORIES, DIMENSION_A_LABEL, DIMENSION_B_LABEL, category_supports_reinforcement, read_family_groups,
 )
 from bkbim.revit.adapter.mark_writer import RevitMarkWriter
 from bkbim.ui.views.auto_mark_options import show_auto_mark_options
@@ -35,6 +36,7 @@ from bkbim.ui.views.category_picker import show_category_picker
 
 _TRANSACTION_LABEL = u"Auto Mark"
 _SETTINGS_KEY = u"auto_mark.prefixes"
+_SETTINGS_KEY_MODE = u"auto_mark.mode"
 
 
 def _settings_path():
@@ -64,6 +66,24 @@ def _remember_prefixes(prefixes):
         pass  # remembering a prefix is a nicety - never block the actual mark write on it
 
 
+def _load_remembered_mode(category):
+    settings = get_settings()
+    settings.load_layer_from_json(LAYER_USER, _settings_path())
+    modes = settings.get(_SETTINGS_KEY_MODE) or {}
+    return modes.get(category, MODE_SIZE_ONLY)
+
+
+def _remember_mode(category, mode):
+    settings = get_settings()
+    modes = dict(settings.get(_SETTINGS_KEY_MODE) or {})
+    modes[category] = mode
+    settings.set(_SETTINGS_KEY_MODE, modes, layer=LAYER_USER)
+    try:
+        settings.save_layer_to_json(LAYER_USER, _settings_path())
+    except Exception:
+        pass
+
+
 def choose_category():
     """Shows the branded category picker. Returns one of
     mark_type_reader.CATEGORIES, or None if the user cancelled.
@@ -84,17 +104,20 @@ def run_auto_mark_flow(doc, category, title):
         return None, u"No {0} found in the model.".format(category.lower())
 
     default_prefixes = _load_remembered_prefixes()
+    supports_reinforcement = category_supports_reinforcement(category)
+    default_mode = _load_remembered_mode(category) if supports_reinforcement else MODE_SIZE_ONLY
 
     options = show_auto_mark_options(
         category, DIMENSION_A_LABEL[category], DIMENSION_B_LABEL[category],
-        family_groups, default_prefixes)
+        family_groups, default_prefixes,
+        supports_reinforcement=supports_reinforcement, default_mode=default_mode)
     if options is None:
         return None, None
 
     t = Transaction(doc, _TRANSACTION_LABEL)
     t.Start()
     try:
-        result = auto_mark_command.run(family_groups, options.prefixes, RevitMarkWriter(doc))
+        result = auto_mark_command.run(family_groups, options.prefixes, RevitMarkWriter(doc), mode=options.mode)
     except Exception as e:
         t.RollBack()
         return None, u"Error:\n{0}".format(str(e))
@@ -102,6 +125,8 @@ def run_auto_mark_flow(doc, category, title):
     if result.success:
         t.Commit()
         _remember_prefixes(options.prefixes)
+        if supports_reinforcement:
+            _remember_mode(category, options.mode)
     else:
         t.RollBack()
 

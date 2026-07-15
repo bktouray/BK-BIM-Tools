@@ -1,0 +1,39 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Dark variant of Tokens.xaml - same 7 keys. REVISED 2026-07-12 (same
+         day) twice: first pass used UX_SPEC.md's own Dark column values
+         (near-black, e.g. Surface.Base #121417) - product owner said "too
+         dark, make it match Revit's colours." Second pass sampled real
+         colors from Revit's own Home screen via computer-use (medium slate
+         blue-gray, ~#2B2E37). Product owner then gave an exact main color
+         directly: **#3B4453 for Surface.Base** - Raised/Hover/Border below
+         are lightened steps above that exact value (not independently
+         sampled) to keep the same dark-mode "elevation" ordering (Base <
+         Raised < Hover < Border in lightness) the rest of this suite's
+         styling already assumes.
+
+         Surface.Hover has no UX_SPEC entry (introduced locally for
+         CategoryPicker's hover state). Brand.Primary is deliberately NOT
+         matched to Revit's own accent color - it's this suite's own brand
+         blue (matches Light's #1A56DB in spirit), not an attempt to look
+         like native Revit chrome.
+
+         2026-07-12, third revision: Text.Primary/Secondary unified to one
+         color (#F5F5F7 - "all the text"), mirrored in Light mode as the
+         reverse pair (Light's Surface.Base is now #F5F5F7, its text is now
+         #3B4453 - see Tokens.xaml).
+
+         Resolved at runtime by bkbim.ui.tokens.resolve_tokens_path(), based
+         on the General settings page's Theme preference (Follow Revit /
+         Light / Dark) - see that module for the full mechanism. -->
+    <SolidColorBrush x:Key="Brand.Primary" Color="#3B82F6"/>
+    <SolidColorBrush x:Key="Text.Primary" Color="#F5F5F7"/>
+    <SolidColorBrush x:Key="Text.Secondary" Color="#F5F5F7"/>
+    <SolidColorBrush x:Key="Surface.Base" Color="#3B4453"/>
+    <SolidColorBrush x:Key="Surface.Raised" Color="#434D5D"/>
+    <SolidColorBrush x:Key="Surface.Hover" Color="#4C5768"/>
+    <SolidColorBrush x:Key="Border.Default" Color="#5A6577"/>
+
+</ResourceDictionary>

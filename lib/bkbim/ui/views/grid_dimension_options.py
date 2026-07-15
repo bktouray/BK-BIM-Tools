@@ -12,6 +12,10 @@ import os
 
 from pyrevit import forms
 
+from bkbim.revit.adapter.stable_representation import element_id_token
+from bkbim.ui.tokens import resolve_tokens_path
+from bkbim.ui.views.options_memory import dimension_style_index
+
 
 class GridDimensionOptionsResult(object):
     def __init__(self, dimension_type, offset_mm, gap_mm):
@@ -21,8 +25,10 @@ class GridDimensionOptionsResult(object):
 
 
 class GridDimensionOptionsWindow(forms.WPFWindow):
-    def __init__(self, dimension_types, type_name_fn, default_offset_mm, default_gap_mm):
+    def __init__(self, dimension_types, type_name_fn, default_offset_mm, default_gap_mm,
+                 default_dimension_type_name=None):
         xaml_path = os.path.join(os.path.dirname(__file__), "GridDimensionOptions.xaml")
+        self.merge_resource_dict(resolve_tokens_path())
         forms.WPFWindow.__init__(self, xaml_path)
 
         self._dimension_types = dimension_types
@@ -31,7 +37,9 @@ class GridDimensionOptionsWindow(forms.WPFWindow):
         for dt in dimension_types:
             self.DimensionStyleCombo.Items.Add(type_name_fn(dt))
         if dimension_types:
-            self.DimensionStyleCombo.SelectedIndex = 0
+            self.DimensionStyleCombo.SelectedIndex = dimension_style_index(
+                dimension_types, type_name_fn, default_dimension_type_name,
+                id_token_fn=lambda dt: element_id_token(dt.Id))
 
         self.OffsetSlider.Value = default_offset_mm
         self.OffsetTextBox.Text = str(int(default_offset_mm))
@@ -85,11 +93,14 @@ class GridDimensionOptionsWindow(forms.WPFWindow):
         self.Close()
 
 
-def show_grid_dimension_options(dimension_types, type_name_fn, default_offset_mm, default_gap_mm):
+def show_grid_dimension_options(dimension_types, type_name_fn, default_offset_mm, default_gap_mm,
+                                 default_dimension_type_name=None):
     """Shows the modal options window.
 
     Returns a GridDimensionOptionsResult, or None if the user cancelled.
     """
-    window = GridDimensionOptionsWindow(dimension_types, type_name_fn, default_offset_mm, default_gap_mm)
+    window = GridDimensionOptionsWindow(
+        dimension_types, type_name_fn, default_offset_mm, default_gap_mm,
+        default_dimension_type_name=default_dimension_type_name)
     window.ShowDialog()
     return window.result

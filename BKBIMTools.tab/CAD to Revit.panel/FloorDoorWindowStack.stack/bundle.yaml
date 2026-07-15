@@ -1,0 +1,7 @@
+# See GridColumnWallStack.stack/bundle.yaml for the "why two stacks" note.
+# Envelope & openings, in modeling order: floors first, then the two
+# opening types that host into the walls the other stack just created.
+layout:
+  - AutoFloor
+  - AutoDoor
+  - AutoWindow

@@ -10,21 +10,23 @@ caller (lib/bkbim/revit/adapter/mark_flow.py), per SAD Sec 4.4.
 
 from bkbim.core.logging import get_logger
 from bkbim.core.result import Result
-from bkbim.domain.marking.mark_planner import plan_marks
+from bkbim.domain.marking.mark_planner import MODE_SIZE_ONLY, plan_marks
 
 _logger = get_logger(u"bkbim.app.auto_mark")
 
 
-def run(family_groups, prefixes, writer):
+def run(family_groups, prefixes, writer, mode=MODE_SIZE_ONLY):
     """family_groups: list of MarkFamilyGroup, as read by mark_type_reader.
     prefixes: dict {family_name: prefix string}; a family with no/blank
     prefix is skipped (see mark_planner.plan_marks).
     writer: port with write(ref, mark_value) -> bool (see mark_writer.py).
+    mode: MODE_SIZE_ONLY (default) or MODE_SIZE_AND_REINFORCEMENT - see
+        mark_planner.plan_marks.
 
     :rtype: bkbim.core.result.Result wrapping
         {"marked": int, "failed": int, "families": int}
     """
-    assignments = plan_marks(family_groups, prefixes)
+    assignments = plan_marks(family_groups, prefixes, mode=mode)
     if not assignments:
         return Result.fail(u"Nothing to mark - assign a prefix to at least one family.")
 

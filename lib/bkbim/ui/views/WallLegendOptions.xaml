@@ -1,0 +1,138 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Wall Legend"
+    Width="460"
+    SizeToContent="Height"
+    MinWidth="400" MinHeight="480"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <!-- Branded replacement for Wall Legend's default-pyRevit wizard
+         (forms.alert choice screens + forms.SelectFromList + forms.ask_for_string).
+         Color brushes come from the shared ui/themes/Tokens.xaml, merged in
+         code-behind before this file is parsed - see bkbim/ui/tokens.py. -->
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Brand.Primary}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock Text="Wall Legend" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock Text="Places a labeled legend component per wall type, with a title."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,16"/>
+
+        <!-- Source mode -->
+        <StackPanel Grid.Row="2">
+            <Label Content="Wall types come from"/>
+            <RadioButton x:Name="ViewSourceRadio" Content="A specific view" GroupName="Source"/>
+            <RadioButton x:Name="ModelSourceRadio" Content="Used in the whole model" GroupName="Source"/>
+            <RadioButton x:Name="ListSourceRadio" Content="Pick from a list" GroupName="Source"/>
+            <RadioButton x:Name="AllSourceRadio" Content="All wall types" GroupName="Source"/>
+        </StackPanel>
+
+        <!-- Conditional source detail (only one visible at a time) -->
+        <StackPanel Grid.Row="3" Margin="0,8,0,0">
+            <StackPanel x:Name="ViewPickerPanel">
+                <Label Content="View"/>
+                <ListBox x:Name="ViewsList" Height="110"/>
+            </StackPanel>
+            <StackPanel x:Name="WallTypePickerPanel">
+                <Label Content="Wall types"/>
+                <ListBox x:Name="WallTypesList" Height="110" SelectionMode="Extended"/>
+            </StackPanel>
+        </StackPanel>
+
+        <Separator Grid.Row="4" Margin="0,16,0,0"/>
+
+        <!-- Title text type -->
+        <StackPanel Grid.Row="5" Margin="0,16,0,0">
+            <Label Content="Title text type"/>
+            <ComboBox x:Name="TitleTypeCombo" Height="28"/>
+        </StackPanel>
+
+        <!-- Label text type -->
+        <StackPanel Grid.Row="6" Margin="0,12,0,0">
+            <Label Content="Wall-type label text type"/>
+            <ComboBox x:Name="LabelTypeCombo" Height="28"/>
+        </StackPanel>
+
+        <!-- Legend title -->
+        <StackPanel Grid.Row="7" Margin="0,12,0,0">
+            <Label Content="Legend title"/>
+            <TextBox x:Name="TitleTextBox" Height="26" VerticalContentAlignment="Center" Padding="6,0"/>
+        </StackPanel>
+
+        <!-- Auto-refresh -->
+        <StackPanel Grid.Row="8" Margin="0,16,0,0">
+            <CheckBox x:Name="AutoCheckBox" Content="Auto-refresh this legend whenever it's opened and wall types have changed"/>
+        </StackPanel>
+
+        <!-- Validation message, hidden unless Run is clicked with a missing choice -->
+        <TextBlock x:Name="ValidationText" Grid.Row="9" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed"/>
+
+        <!-- Row 10 ("*") intentionally empty: absorbs extra vertical space so the
+             footer stays anchored near the bottom instead of floating mid-window
+             when the user resizes taller. -->
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="11" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" Style="{StaticResource SecondaryButton}" Margin="0"/>
+            <Button x:Name="RunButton" Content="Generate" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>

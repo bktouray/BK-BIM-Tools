@@ -14,7 +14,10 @@ import os
 
 from pyrevit import forms
 
+from bkbim.revit.adapter.stable_representation import element_id_token
+from bkbim.ui.tokens import resolve_tokens_path
 from bkbim.ui.views.listbox_drag_select import enable_drag_multiselect
+from bkbim.ui.views.options_memory import dimension_style_index, select_remembered_types
 
 
 class WallOpeningDimensionOptionsResult(object):
@@ -26,8 +29,10 @@ class WallOpeningDimensionOptionsResult(object):
 
 
 class WallOpeningDimensionOptionsWindow(forms.WPFWindow):
-    def __init__(self, dimension_types, wall_types, type_name_fn, default_offset_mm, default_gap_mm):
+    def __init__(self, dimension_types, wall_types, type_name_fn, default_offset_mm, default_gap_mm,
+                 default_dimension_type_name=None, default_selected_wall_type_names=None):
         xaml_path = os.path.join(os.path.dirname(__file__), "WallOpeningDimensionOptions.xaml")
+        self.merge_resource_dict(resolve_tokens_path())
         forms.WPFWindow.__init__(self, xaml_path)
 
         self._dimension_types = dimension_types
@@ -36,8 +41,11 @@ class WallOpeningDimensionOptionsWindow(forms.WPFWindow):
 
         for dt in dimension_types:
             self.DimensionStyleCombo.Items.Add(type_name_fn(dt))
+        id_token_fn = lambda t: element_id_token(t.Id)
+
         if dimension_types:
-            self.DimensionStyleCombo.SelectedIndex = 0
+            self.DimensionStyleCombo.SelectedIndex = dimension_style_index(
+                dimension_types, type_name_fn, default_dimension_type_name, id_token_fn=id_token_fn)
 
         self.OffsetSlider.Value = default_offset_mm
         self.OffsetTextBox.Text = str(int(default_offset_mm))
@@ -46,10 +54,10 @@ class WallOpeningDimensionOptionsWindow(forms.WPFWindow):
 
         for wt in wall_types:
             self.WallTypesList.Items.Add(type_name_fn(wt))
-        # Default: every wall type selected, so behavior is unchanged unless the
-        # user deliberately narrows it - matches every existing modeling style.
-        for i in range(self.WallTypesList.Items.Count):
-            self.WallTypesList.SelectedItems.Add(self.WallTypesList.Items[i])
+        # Default: every wall type selected unless a remembered subset exists
+        # (Tool Memory) - matches every existing modeling style on a first run.
+        select_remembered_types(
+            self.WallTypesList, type_name_fn, wall_types, default_selected_wall_type_names, id_token_fn=id_token_fn)
 
         enable_drag_multiselect(self.WallTypesList)
 
@@ -106,12 +114,16 @@ class WallOpeningDimensionOptionsWindow(forms.WPFWindow):
 
 
 def show_wall_opening_dimension_options(dimension_types, wall_types, type_name_fn,
-                                         default_offset_mm, default_gap_mm):
+                                         default_offset_mm, default_gap_mm,
+                                         default_dimension_type_name=None,
+                                         default_selected_wall_type_names=None):
     """Shows the modal options window.
 
     Returns a WallOpeningDimensionOptionsResult, or None if the user cancelled.
     """
     window = WallOpeningDimensionOptionsWindow(
-        dimension_types, wall_types, type_name_fn, default_offset_mm, default_gap_mm)
+        dimension_types, wall_types, type_name_fn, default_offset_mm, default_gap_mm,
+        default_dimension_type_name=default_dimension_type_name,
+        default_selected_wall_type_names=default_selected_wall_type_names)
     window.ShowDialog()
     return window.result
