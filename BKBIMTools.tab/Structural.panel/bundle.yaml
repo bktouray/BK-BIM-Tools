@@ -14,9 +14,16 @@ title: Structural
 # large buttons" over a pulldown or icon-only stack once shown that
 # trade-off. More structural modeling tools land here later (Cover,
 # Material, ...) - product owner, 2026-07-14.
+# Sixth: Mark Colors (colors Columns/Beams by Mark using real View Filters
+# - pastel color + transparency + configurable line weight/type per Mark,
+# applied to picked views or a view template; requires Auto Mark to have
+# been run first) - product owner, 2026-07-15: contractor-readability, so
+# a Mark seen in a framing plan visually points back to its Typical Detail
+# Section.
 layout:
   - FloorsToFootings
   - PCCBlinding
   - TypicalColumns
   - TypicalBeams
   - TypicalFootings
+  - MarkColors

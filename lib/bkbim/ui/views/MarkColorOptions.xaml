@@ -1,0 +1,147 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Mark Colors"
+    Width="480"
+    SizeToContent="Height"
+    MinWidth="440" MinHeight="500"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="TextBlock" x:Key="SummaryRow">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleText" Text="Mark Colors" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText" TextWrapping="Wrap"
+                       Style="{StaticResource Caption}"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,12,0,0"/>
+
+        <!-- Mark/color preview -->
+        <ScrollViewer Grid.Row="2" Height="110" Margin="0,12,0,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="PreviewPanel"/>
+        </ScrollViewer>
+
+        <Separator Grid.Row="3" Margin="0,12,0,0"/>
+
+        <!-- Target: view(s) or template -->
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <Label Content="Apply to"/>
+            <RadioButton x:Name="ViewsRadio" Content="Selected view(s)"
+                         GroupName="Target" IsChecked="True" Margin="0,0,0,4"/>
+            <RadioButton x:Name="TemplateRadio" Content="A view template" GroupName="Target"/>
+
+            <ListBox x:Name="ViewsList" Height="90" Margin="0,8,0,0" SelectionMode="Extended"/>
+            <ComboBox x:Name="TemplateCombo" Margin="0,8,0,0" Visibility="Collapsed"/>
+        </StackPanel>
+
+        <!-- Scrollable body: transparency/weights/patterns -->
+        <ScrollViewer Grid.Row="5" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <StackPanel Margin="0,0,0,0">
+                    <Label Content="Surface transparency (%)"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="TransparencySlider" Grid.Column="0" Minimum="0" Maximum="100"
+                                VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBox x:Name="TransparencyTextBox" Grid.Column="1" Height="26"
+                                 VerticalContentAlignment="Center" TextAlignment="Right"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0">
+                    <Label Content="Projection line weight"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="ProjectionWeightSlider" Grid.Column="0" Minimum="1" Maximum="16"
+                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBox x:Name="ProjectionWeightTextBox" Grid.Column="1" Height="26"
+                                 VerticalContentAlignment="Center" TextAlignment="Right"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0">
+                    <Label Content="Cut line weight"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="CutWeightSlider" Grid.Column="0" Minimum="1" Maximum="16"
+                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBox x:Name="CutWeightTextBox" Grid.Column="1" Height="26"
+                                 VerticalContentAlignment="Center" TextAlignment="Right"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0">
+                    <Label Content="Projection line type"/>
+                    <ComboBox x:Name="ProjectionPatternCombo"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0">
+                    <Label Content="Cut line type"/>
+                    <ComboBox x:Name="CutPatternCombo"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Run" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>
