@@ -11,6 +11,7 @@ from bkbim.core.settings import (
     LAYER_SESSION,
     LAYER_USER,
     SettingsStore,
+    _json_safe,
 )
 
 
@@ -62,3 +63,11 @@ def test_load_layer_from_missing_file_is_noop(tmp_path):
     store = SettingsStore()
     store.load_layer_from_json(LAYER_USER, path)
     assert store.get("theme") is None
+
+
+def test_json_safe_decodes_non_utf8_revit_name_bytes():
+    value = _json_safe({
+        b"pipe_type": [b"Valsir Pexal\xae Standard"]})
+
+    assert value == {
+        u"pipe_type": [u"Valsir Pexal\u00ae Standard"]}

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Lets the user pick which room(s) to generate Sanitary Drainage for -
-Tier 1 (MEP_SAD.md Sec 7), reusing pyRevit's own forms.SelectFromList same
-as pick_target_views does for view selection, not a custom WPF window yet.
+"""Lets an MEP flow pick one or more rooms with pyRevit's SelectFromList.
+
+The caller supplies the tool title so this shared prompt does not label
+Water Supply work as Sanitary Drainage.
 """
 
 from pyrevit import forms
@@ -18,7 +19,7 @@ def pick_rooms(rooms, title=u"Generate Sanitary Drainage"):
 
     picked_labels = forms.SelectFromList.show(
         sorted(name_map.keys()),
-        title=u"Pick the room(s) to generate Sanitary Drainage for",
+        title=u"{0} - Pick room(s)".format(title),
         multiselect=True)
     if not picked_labels:
         return None

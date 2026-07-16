@@ -38,3 +38,14 @@ def test_pipe_capacity_table_defaults_ascend_by_dn():
 def test_default_valve_height_matches_office_convention():
     std = default_standard()
     assert std.mep_valve_height_mm == 1800.0
+
+
+def test_default_wall_penetration_matches_office_convention():
+    std = default_standard()
+    assert std.mep_wall_penetration_mm == 80.0
+    assert std.mep_max_branch_length_mm is None
+
+
+def test_default_hot_cold_spacing_matches_office_convention():
+    std = default_standard()
+    assert std.mep_hot_cold_spacing_mm == 50.0

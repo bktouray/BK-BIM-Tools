@@ -40,6 +40,9 @@ def test_to_dict_round_trips_through_from_dict():
     assert restored.name == original.name
     assert restored.offset_first_mm == original.offset_first_mm
     assert restored.mep_valve_height_mm == original.mep_valve_height_mm
+    assert restored.mep_wall_penetration_mm == original.mep_wall_penetration_mm
+    assert restored.mep_hot_cold_spacing_mm == original.mep_hot_cold_spacing_mm
+    assert restored.mep_max_branch_length_mm == original.mep_max_branch_length_mm
     assert restored.mep_frequency_factor_by_usage == original.mep_frequency_factor_by_usage
     assert restored.mep_min_slope_table_percent == original.mep_min_slope_table_percent
 
@@ -95,6 +98,24 @@ def test_validate_rejects_non_positive_valve_height():
     std = Standard(name=u"Bad", mep_valve_height_mm=0)
     errors = std.validate()
     assert any(u"MEP valve height" in e for e in errors)
+
+
+def test_validate_rejects_non_positive_wall_penetration():
+    std = Standard(name=u"Bad", mep_wall_penetration_mm=0)
+    errors = std.validate()
+    assert any(u"MEP wall penetration" in e for e in errors)
+
+
+def test_validate_rejects_non_positive_hot_cold_spacing():
+    std = Standard(name=u"Bad", mep_hot_cold_spacing_mm=0)
+    errors = std.validate()
+    assert any(u"MEP hot/cold spacing" in e for e in errors)
+
+
+def test_validate_rejects_non_positive_optional_max_branch_length():
+    std = Standard(name=u"Bad", mep_max_branch_length_mm=-1)
+    errors = std.validate()
+    assert any(u"maximum branch length" in e for e in errors)
 
 
 def test_validate_rejects_frequency_factor_out_of_range():

@@ -4,6 +4,25 @@
 - **Deciders:** Product owner (BK Designs) + Lead Architect
 - **Supersedes nothing; extends** [ADR-0002](0002-vertical-slice-first.md) into the MEP module.
 
+## Update 2026-07-16 — first Cold Water slice narrowed and verified
+
+The active Water Supply pushbutton is now deliberately **Cold Water only**:
+one room, selected fixtures, one straight confirmed wall, a picked incoming
+water-main point/height, a picked valve routing point/height, and one of
+three trunk modes: ceiling, floor, or wall. Hot Water, automatic valve-family
+placement, curved/branching wall routing, sizing, collision avoidance, and
+preview are not bundled into this slice. Multiple connected straight walls
+are supported as one ordered corridor.
+
+This is the ADR-0002 vertical-slice rule applied in practice. The shipped
+path is pure routing graph → all pipe geometry → fittings/connections, in
+one atomic transaction. MCP validation in the real test project created a
+two-fixture trunk-and-branch system with both fixture connectors connected,
+then rolled the containing transaction group back to the original model.
+The later explicit-source addition has a separate rolled-back MCP validation
+for an open-pipe endpoint. The current picked incoming-main/valve workflow
+still requires end-to-end manual validation in Revit.
+
 ## Update 2026-07-10 — active slice switched to Water Supply
 
 By the time this ADR's Sanitary Drainage slice reached a real pushbutton

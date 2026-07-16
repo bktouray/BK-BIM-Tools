@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from bkbim.domain.mep.routing.routing_graph import (
-    RoutingCorridor, build_routing_graph,
+    RoutingCorridor, build_routing_graph, orient_polyline_corridor,
+    orient_single_segment_corridor,
 )
 
 
@@ -129,6 +130,16 @@ def test_branch_warns_when_real_distance_differs_a_lot_from_configured_penetrati
     assert any(u"far-from-wall" in w and u"differs substantially" in w for w in graph.warnings)
 
 
+def test_branch_warning_uses_optional_human_readable_target_label():
+    corridor_points = [(0, 0, 0), (0, 3000, 0)]
+    targets = [(u"opaque-connector", (500, 1000, 0), 15, u"Basin : Standard [id 42]")]
+
+    graph = build_routing_graph(corridor_points, targets, wall_penetration_mm=80)
+
+    assert u"Basin : Standard [id 42]" in graph.warnings[0]
+    assert u"opaque-connector" not in graph.warnings[0]
+
+
 def test_branch_does_not_warn_when_real_distance_is_close_to_configured_penetration():
     corridor_points = [(0, 0, 0), (0, 3000, 0)]
     targets = [(u"near-the-wall", (100, 1000, 0), 15)]  # 100mm real vs 80mm configured
@@ -189,3 +200,92 @@ def test_trunk_points_visits_junctions_in_order():
     graph = build_routing_graph(corridor_points, targets, wall_penetration_mm=80)
 
     assert graph.trunk_points == [(0, 0, 0), (0, 500, 0), (0, 2000, 0)]
+
+
+def test_trunk_points_preserve_corridor_corners_before_the_last_target():
+    corridor_points = [(0, 0, 0), (1000, 0, 0), (1000, 2000, 0)]
+    targets = [
+        (u"before-corner", (500, 100, 0), 15),
+        (u"after-corner", (900, 1500, 0), 15),
+    ]
+
+    graph = build_routing_graph(
+        corridor_points, targets, wall_penetration_mm=80)
+
+    assert graph.trunk_points == [
+        (0, 0, 0), (500, 0, 0), (1000, 0, 0), (1000, 1500, 0)]
+
+
+def test_single_segment_corridor_projects_origin_and_orients_toward_targets():
+    corridor = orient_single_segment_corridor(
+        (0, 0, 1800), (4000, 0, 1800),
+        origin_point=(100, 250, 1800),
+        target_points=[(1000, 100, 500), (3000, 100, 700)])
+
+    assert corridor == [(100, 0, 1800), (4000, 0, 1800)]
+
+
+def test_single_segment_corridor_can_orient_toward_the_start_endpoint():
+    corridor = orient_single_segment_corridor(
+        (0, 0, 1800), (4000, 0, 1800),
+        origin_point=(3500, 100, 1800),
+        target_points=[(500, 100, 500), (2000, 100, 700)])
+
+    assert corridor == [(3500, 0, 1800), (0, 0, 1800)]
+
+
+def test_single_segment_corridor_rejects_targets_on_both_sides_of_origin():
+    try:
+        orient_single_segment_corridor(
+            (0, 0, 1800), (4000, 0, 1800),
+            origin_point=(2000, 0, 1800),
+            target_points=[(500, 100, 500), (3500, 100, 700)])
+        assert False, "expected ValueError"
+    except ValueError as error:
+        assert u"both sides" in str(error)
+
+
+def test_single_segment_corridor_tolerance_is_measured_in_model_units():
+    corridor = orient_single_segment_corridor(
+        (0, 0, 1800), (1000000, 0, 1800),
+        origin_point=(500000, 0, 1800),
+        target_points=[(500002, 100, 500)],
+        tolerance=1.0)
+
+    assert corridor == [
+        (500000, 0, 1800), (1000000, 0, 1800)]
+
+
+def test_polyline_corridor_preserves_corners_after_origin():
+    corridor = orient_polyline_corridor(
+        [(0, 0, 1800), (1000, 0, 1800), (1000, 2000, 1800)],
+        origin_point=(100, 100, 1800),
+        target_points=[(900, 1500, 600)])
+
+    assert corridor == [
+        (100, 0, 1800),
+        (1000, 0, 1800),
+        (1000, 2000, 1800)]
+
+
+def test_polyline_corridor_can_orient_back_toward_start():
+    corridor = orient_polyline_corridor(
+        [(0, 0, 1800), (1000, 0, 1800), (1000, 2000, 1800)],
+        origin_point=(1000, 1900, 1800),
+        target_points=[(100, 200, 600)])
+
+    assert corridor == [
+        (1000, 1900, 1800),
+        (1000, 0, 1800),
+        (0, 0, 1800)]
+
+
+def test_polyline_corridor_rejects_targets_on_both_sides_of_origin():
+    try:
+        orient_polyline_corridor(
+            [(0, 0, 1800), (1000, 0, 1800), (1000, 2000, 1800)],
+            origin_point=(1000, 500, 1800),
+            target_points=[(500, 100, 600), (900, 1500, 600)])
+        assert False, "expected ValueError"
+    except ValueError as error:
+        assert u"both sides" in str(error)

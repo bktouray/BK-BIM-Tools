@@ -4,6 +4,157 @@ All notable changes to BK BIM Tools are recorded here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer per module and
 per suite (SAD §5 versioning).
 
+## Route Cold Water first vertical slice
+
+Narrowed the Water Supply pushbutton to one testable Cold Water workflow:
+one room, explicitly selected unconnected fixture inlets, one confirmed
+straight wall, a picked incoming water-main point/height, a picked valve
+routing point/height, and a user-selected trunk mode. The wall-derived trunk
+is planned in a
+pure routing graph; all pipes are created before the fittings pass; fixture
+connectors, branch elbows, trunk tees, and the final elbow are then created
+atomically. Any required failure rolls back the complete route.
+
+Connector selection is now role-aware: Sanitary keeps outlet semantics while
+Water Supply accepts inlet/bidirectional connectors and rejects ambiguous
+fixture targets. Fixtures that project to the same trunk tap are rejected
+before Revit geometry because cross/manifold routing is deferred. Office
+Standards now expose the expected wall rough-in distance and optional
+maximum branch warning length.
+
+MCP validation in the real "Toilet Test File" routed two cold-water fixtures
+with 6 pipes, 1 tee, 3 elbows, and 2 connected fixture inlets. The containing
+transaction group was rolled back and restored 0 pipes with both original
+fixture connectors disconnected.
+
+Follow-up from the first interactive test: hosted fixture families in the
+test model often return `FamilyInstance.LevelId = InvalidElementId`, causing
+a false "fixtures must be on the same level" rejection. Room-scoped MEP
+routing now uses the containing Room's level as the authoritative level.
+
+Manual ribbon validation then confirmed the intended Cold Water
+trunk-and-branch layout for selected fixtures on one wall.
+
+A second interactive-test failure occurred only after successful routing,
+while Tool Memory saved the selected `Valsir Pexal® Standard` pipe type.
+Revit names are now normalized to Unicode at the adapter boundary, Settings
+normalizes nested byte strings before JSON encoding, and Tool Memory treats
+serialization errors/corrupted optional memory files as fail-open state
+instead of crashing an otherwise successful tool.
+
+The follow-on Cold Water slice now matches the requested water-main -> valve
+-> fixtures workflow. The user picks the incoming main point and height, picks
+the valve routing position and height, then chooses whether the main trunk
+runs in the ceiling, through the floor, or in the walls. The valve is still a
+routing point, not an automatically placed family instance. Feed, trunk, and
+branch pipes are all created before fittings/connections; end-to-end manual
+validation of the new workflow remains required.
+
+Multi-wall follow-up: Route Cold Water now accepts one connected path of
+straight walls instead of only one wall. The wall adapter orders touching
+wall segments into a single corridor, rejects disconnected/branching/looped
+or curved selections, and the fittings pass joins trunk corner breaks after
+all pipes exist. A Revit MCP rollback check created two trunk pipes around a
+corner, inserted one elbow, and restored the model cleanly.
+
+Follow-up fix from through-floor multi-wall testing: upstream feed geometry
+now ends at the wall-projected trunk origin rather than the raw valve click
+point, so a valve picked slightly off the wall no longer leaves a feed-to-
+trunk gap during fitting generation. Fitting failures now include specific
+diagnostic details in the popup.
+
+Wall-corridor follow-up: selected straight walls no longer need to be split
+manually at corners/intersections. The corridor builder now inserts virtual
+nodes where selected wall centerlines cross, projects the valve and fixture
+targets onto that wall network, and routes along the connected path that
+reaches all selected fixtures. Branching fixture paths are still rejected as
+out of scope for this slice.
+
+Remote-valve follow-up: the valve/origin point is no longer required to be
+near the selected fixture wall corridor. The valve is projected to the
+nearest point on the selected wall network, and the feed route bridges from
+the picked valve location to that projected trunk origin.
+
+Feed-route follow-up: after choosing the trunk mode, Route Cold Water now
+asks whether the upstream water-main/valve feed should cut directly through
+the ceiling/floor to the fixture corridor or follow the selected walls. The
+direct option keeps the fixture-serving trunk on the wall corridor, but it
+does not force a remote valve/main point to trace the room perimeter before
+starting that trunk.
+
+Direct-feed Revit stability follow-up: direct feed mode now uses clean
+vertical/plan legs at the trunk elevation instead of a compound 3D diagonal
+through the valve height, and approaches the first trunk segment in alignment
+with the trunk where possible. Route Cold Water also installs a scoped MEP
+failure preprocessor so Revit connection errors roll back and report instead
+of trapping the user in a modal failure dialog.
+
+Ceiling/floor elevation convention fix: in-ceiling routes now run above the
+specified ceiling height by the configured offset, and through-floor routes
+run below the finish floor/level by the configured offset. The user no longer
+needs to enter a negative floor offset to get below-floor pipework.
+
+Direct-feed tee fix: when a direct upstream feed lands exactly on the first
+fixture tap, the fitting pass now treats that feed pipe as the upstream side
+of the tee. Previously it only counted trunk pipes at junctions, so the
+first direct-feed junction could report a missing connector and roll back.
+
+Direct-feed valve drop follow-up: direct water-main/feed routes now continue
+through the selected ceiling/floor plane to the picked valve XY location and
+create a vertical branch down/up to the specified valve height. The lower
+valve-height endpoint remains open until real valve family placement is added,
+but the route now visibly marks the intended valve position instead of only
+using its XY at trunk elevation.
+
+Direct-feed revert: the experimental direct water-main/valve path is disabled
+again after Revit rejected the visual valve-drop tee. Route Cold Water now
+uses the stable wall-following upstream feed path only. Direct feed should
+return later as part of a real valve accessory placement pass with proper
+valve-family connectors.
+
+Existing-main source option: Route Cold Water now lets the user choose
+between clicking an incoming main point or selecting an existing main pipe.
+For an existing pipe source, the user selects the pipe and clicks the tie-in
+point; the tool projects that point onto the pipe, starts the upstream feed
+there, and the fitting pass attempts an endpoint elbow/union or a mid-pipe
+split + tee. This Revit pipe-splitting path still requires manual validation
+in the test model.
+
+Ceiling valve-bypass feed shape: when the incoming/source elevation and the
+post-valve trunk are both above the selected valve height, the upstream feed
+now drops before the valve, runs horizontally through the valve location at
+valve height, and rises after it. This avoids the previous stacked vertical
+down/up condition at the valve point that Revit could reject as a failed feed
+fitting.
+
+## Route Hot Water first reuse slice
+
+Added a separate **Route Hot Water** MEP pushbutton that reuses the proven
+Water Supply trunk-and-branch workflow with the `DomesticHotWater` connector
+classification and the `Domestic Hot Water` Revit piping system type. Hot
+Water has its own pipe-type memory key and UI labels, while keeping the same
+room, fixture, wall-corridor, source-point/source-pipe, ceiling/floor/wall
+trunk, feed, pipe and fitting flow as Cold Water.
+
+Pure command coverage now includes Domestic Hot Water connector routing. Manual
+Revit validation is still required before this button is described as live-
+verified.
+
+Hot/cold coordination follow-up: Route Hot Water now offsets its wall-derived
+trunk/corridor from the Cold Water wall reference by the office standard
+`Standard.mep_hot_cold_spacing_mm` default (50 mm). The run prompt allows a
+per-run signed offset so the user can flip sides when needed, and rejects a
+zero/effectively-zero offset to avoid generating Hot Water directly on top of
+Cold Water at the same elevation. Office Standards exposes the default spacing.
+
+Added a combined **Route Water Supply** MEP pushbutton while retaining the
+separate **Route Cold Water** and **Route Hot Water** buttons. The combined
+button opens a branded BK BIM Tools window where the user chooses Cold Water,
+Hot Water, or both, plus the pipe type(s) to use. It delegates to the same
+proven Cold/Hot water-supply wizard rather than duplicating routing logic; in
+the both-systems case it runs Cold Water first, then Hot Water with the hot/cold
+offset rule. Added a custom line-art forked-supply icon for the combined button.
+
 ## Added Auto Mark & Tag combined button; regrouped Auto Mark/Auto Tag into a stack
 
 New `AutoMarkAndTag.pushbutton` in Documentation panel's third group: runs

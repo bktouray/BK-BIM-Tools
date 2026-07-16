@@ -38,14 +38,20 @@ def _path_for_layer(layer, doc):
 def remember(key, value, layer=LAYER_PROJECT, doc=None):
     """Persists one key immediately - never blocks the caller's real work on
     failure (matches mark_flow.py's own "remembering is a nicety" stance)."""
+    # Validate programming inputs outside the fail-open persistence block.
+    # A ValueError raised by JSON encoding is a storage failure, not a bad
+    # caller, and must not escape into a successfully completed tool.
+    path = _path_for_layer(layer, doc)
+    settings = get_settings()
     try:
-        settings = get_settings()
-        path = _path_for_layer(layer, doc)
         settings.load_layer_from_json(layer, path)
+    except Exception:
+        # A previous interrupted/failed write may have left invalid JSON.
+        # Remembering a new value should repair that optional memory file.
+        settings.set_layer(layer, {})
+    try:
         settings.set(key, value, layer=layer)
         settings.save_layer_to_json(layer, path)
-    except ValueError:
-        raise  # a programming error (missing doc, bad layer) - never swallow
     except Exception:
         pass
 

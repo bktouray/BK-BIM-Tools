@@ -15,6 +15,10 @@ connectors labelled PipeSystemType=Sanitary with Direction=In - this reader
 does not correct or filter that here; it reads what the family says.
 `FixtureInfo.primary_connector()` is where the flow_direction check actually
 guards against picking an inlet as a drain outlet (see connector_info.py).
+
+Level resolution uses the containing Room's LevelId first. Hosted plumbing
+families commonly report FamilyInstance.LevelId = InvalidElementId even when
+they are unambiguously inside a room on a real level.
 """
 
 import clr
@@ -78,6 +82,15 @@ def _room_ref(doc, location):
         return None
 
 
+def _level_ref(element, room):
+    if room is not None:
+        try:
+            return room.LevelId
+        except Exception:
+            pass
+    return getattr(element, u"LevelId", None)
+
+
 def _family_name(symbol, fallback=u"Unnamed Family"):
     try:
         name = symbol.Family.Name
@@ -130,6 +143,6 @@ class RevitFixtureReader(object):
                 type_name=_type_name(elem.Symbol),
                 connectors=connectors,
                 room_ref=room_id,
-                level_ref=getattr(elem, u"LevelId", None)))
+                level_ref=_level_ref(elem, room)))
 
         return fixtures

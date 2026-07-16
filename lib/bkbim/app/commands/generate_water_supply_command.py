@@ -20,7 +20,22 @@ diameter is a plain parameter the caller supplies.
 """
 
 from bkbim.core.result import Result
+from bkbim.domain.mep.models.connector_info import ConnectorInfo
 from bkbim.domain.mep.routing.routing_graph import build_routing_graph
+
+
+def _points_close(point_a, point_b, tolerance_mm=1.0):
+    return sum(
+        (point_b[i] - point_a[i]) ** 2 for i in range(3)
+    ) ** 0.5 <= tolerance_mm
+
+
+def _fixture_label(fixture):
+    """Returns diagnostic text without exposing an adapter's connector ref."""
+    return u"{0} : {1} [id {2}]".format(
+        fixture.family_name or u"Unnamed Family",
+        fixture.type_name or u"Unnamed Type",
+        fixture.ref)
 
 
 def run(fixtures, system_classification, corridor_points, wall_penetration_mm,
@@ -47,15 +62,27 @@ def run(fixtures, system_classification, corridor_points, wall_penetration_mm,
     targets = []
     skipped = 0
 
+    allowed_flows = (ConnectorInfo.FLOW_IN, ConnectorInfo.FLOW_BIDIRECTIONAL)
     for fixture in fixtures:
-        connector = fixture.primary_connector(system_classification)
-        if connector is None:
+        connectors = fixture.matching_connectors(
+            system_classification, allowed_flow_directions=allowed_flows)
+        if not connectors:
             skipped += 1
             warnings.append(
-                u"{0} has no primary {1} connector - skipped.".format(
+                u"{0} has no {1} inlet connector - skipped.".format(
                     repr(fixture), system_classification))
             continue
-        targets.append((connector.ref, connector.position, connector.diameter_mm))
+        if len(connectors) > 1:
+            skipped += 1
+            warnings.append(
+                u"{0} has {1} possible {2} inlet connectors - skipped because "
+                u"the routing target is ambiguous.".format(
+                    repr(fixture), len(connectors), system_classification))
+            continue
+        connector = connectors[0]
+        targets.append((
+            connector.ref, connector.position, connector.diameter_mm,
+            _fixture_label(fixture)))
 
     if not targets:
         return Result.fail(
@@ -66,6 +93,19 @@ def run(fixtures, system_classification, corridor_points, wall_penetration_mm,
         corridor_points, targets, wall_penetration_mm=wall_penetration_mm,
         max_branch_length_mm=max_branch_length_mm)
     warnings.extend(graph.warnings)
+
+    accepted_junctions = []
+    for junction, branch in graph.junctions:
+        for accepted_junction, accepted_branch in accepted_junctions:
+            if _points_close(junction.position, accepted_junction.position):
+                return Result.fail(
+                    u"Two selected fixtures project to the same trunk tap "
+                    u"({0} and {1}). This Cold Water slice supports one "
+                    u"branch per tap; select one fixture or adjust the "
+                    u"layout.".format(
+                        accepted_branch.target_label, branch.target_label),
+                    diagnostics=warnings)
+        accepted_junctions.append((junction, branch))
 
     return Result.ok(
         value={"graph": graph, "routed": len(targets), "skipped": skipped, "warnings": warnings},

@@ -1,8 +1,8 @@
 title: MEP
-# First MEP panel (ADR-0004 / MEP_SAD.md). Water Supply is the active slice
-# (ADR-0004 update, 2026-07-10 - Sanitary Drainage paused, listed first
-# because it shipped first, but Water Supply is the one actively being
-# extended). Vent, Storm, etc. land here later, each its own vertical slice.
+# First MEP panel (ADR-0004 / MEP_SAD.md). Route Water Supply is the combined
+# launcher; the separate Cold/Hot buttons remain for direct single-system runs.
 layout:
   - GenerateSanitaryDrainage
+  - GenerateWaterSupplyCombined
   - GenerateWaterSupply
+  - GenerateHotWater

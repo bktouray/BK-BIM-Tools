@@ -30,7 +30,10 @@ class Standard(object):
                  mep_pipe_capacity_table_du=None,
                  mep_default_pipe_material=u"uPVC",
                  mep_default_pipe_type_name=None,
-                 mep_valve_height_mm=1800.0):
+                 mep_valve_height_mm=1800.0,
+                 mep_wall_penetration_mm=80.0,
+                 mep_hot_cold_spacing_mm=50.0,
+                 mep_max_branch_length_mm=None):
         self.name = name
         self.offset_first_mm = offset_first_mm
         # Spacing between each of an exterior wall's 3 perimeter dimension
@@ -128,10 +131,21 @@ class Standard(object):
         # default above, this is a real, product-owner-confirmed office
         # convention, not a placeholder needing verification: every valve
         # (shower mixer, isolation valve, etc.) sits at 1800mm above its
-        # level. Used as the target elevation for a wall-routed vertical leg
-        # in RoutingStyle.IN_WALL/CEILING_DROP/FLOOR_RISE when the target is
-        # a valve rather than a fixture's own connector.
+        # level. The active Cold Water slice uses it as the wall-trunk
+        # elevation; fixture branches rise/drop from their real connector
+        # elevations to that trunk.
         self.mep_valve_height_mm = mep_valve_height_mm
+        # Product-owner-confirmed expected rough-in distance. The routing
+        # graph uses real connector/wall geometry; this value is a validation
+        # reference, not a forced segment length.
+        self.mep_wall_penetration_mm = mep_wall_penetration_mm
+        # Product-owner-confirmed desired hot/cold parallel spacing. The
+        # current Water Supply slice uses it as a lateral Hot Water offset
+        # when Cold and Hot use the same trunk elevation.
+        self.mep_hot_cold_spacing_mm = mep_hot_cold_spacing_mm
+        # Optional constructability warning threshold. None means the office
+        # has not approved a limit yet, so the tool does not invent one.
+        self.mep_max_branch_length_mm = mep_max_branch_length_mm
 
     def __repr__(self):
         return u"<Standard {0}>".format(self.name)
@@ -163,6 +177,9 @@ class Standard(object):
             u"mep_default_pipe_material": self.mep_default_pipe_material,
             u"mep_default_pipe_type_name": self.mep_default_pipe_type_name,
             u"mep_valve_height_mm": self.mep_valve_height_mm,
+            u"mep_wall_penetration_mm": self.mep_wall_penetration_mm,
+            u"mep_hot_cold_spacing_mm": self.mep_hot_cold_spacing_mm,
+            u"mep_max_branch_length_mm": self.mep_max_branch_length_mm,
         }
 
     @classmethod
@@ -216,6 +233,12 @@ class Standard(object):
             mep_default_pipe_material=_get(u"mep_default_pipe_material", defaults.mep_default_pipe_material),
             mep_default_pipe_type_name=_get(u"mep_default_pipe_type_name", defaults.mep_default_pipe_type_name),
             mep_valve_height_mm=_get(u"mep_valve_height_mm", defaults.mep_valve_height_mm),
+            mep_wall_penetration_mm=_get(
+                u"mep_wall_penetration_mm", defaults.mep_wall_penetration_mm),
+            mep_hot_cold_spacing_mm=_get(
+                u"mep_hot_cold_spacing_mm", defaults.mep_hot_cold_spacing_mm),
+            mep_max_branch_length_mm=_get(
+                u"mep_max_branch_length_mm", defaults.mep_max_branch_length_mm),
         )
 
     def validate(self):
@@ -239,6 +262,13 @@ class Standard(object):
         _positive(u"Structural chain offset", self.structural_chain_offset_mm)
         _positive(u"Structural chain gap", self.structural_chain_gap_mm)
         _positive(u"MEP valve height", self.mep_valve_height_mm)
+        _positive(u"MEP wall penetration", self.mep_wall_penetration_mm)
+        _positive(u"MEP hot/cold spacing", self.mep_hot_cold_spacing_mm)
+        if (self.mep_max_branch_length_mm is not None and
+                self.mep_max_branch_length_mm <= 0):
+            errors.append(
+                u"MEP maximum branch length must be greater than 0 when set "
+                u"(got {0}).".format(self.mep_max_branch_length_mm))
 
         for usage, factor in (self.mep_frequency_factor_by_usage or {}).items():
             if factor is None or not (0 < factor <= 2):

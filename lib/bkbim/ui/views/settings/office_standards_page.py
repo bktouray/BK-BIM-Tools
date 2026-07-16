@@ -81,13 +81,14 @@ class _Row(object):
 class OfficeStandardsPage(object):
     def __init__(self):
         self._standard = load_office_standard()
-        self._scalar_controls = {}     # field_name -> TextBox (offsets/gaps + valve height)
+        self._scalar_controls = {}     # field_name -> TextBox (offsets/gaps + water supply scalars)
         self._material_control = None
         self._pipe_type_control = None
         self._frequency_controls = {}  # usage -> TextBox
         self._discharge_controls = {}  # fixture -> TextBox
         self._min_slope_controls = []  # list of (dn_mm, TextBox)
         self._max_slope_control = None
+        self._max_branch_length_control = None
         self._capacity_controls = []   # list of (dn_mm, TextBox)
 
     # -- building ------------------------------------------------------
@@ -216,6 +217,24 @@ class OfficeStandardsPage(object):
         self._scalar_controls[u"mep_valve_height_mm"] = row.control
         panel.Children.Add(row.container)
 
+        row = self._build_number_row(
+            u"Expected fixture-to-wall rough-in distance (mm)",
+            self._standard.mep_wall_penetration_mm)
+        self._scalar_controls[u"mep_wall_penetration_mm"] = row.control
+        panel.Children.Add(row.container)
+
+        row = self._build_number_row(
+            u"Hot/cold parallel spacing (mm)",
+            self._standard.mep_hot_cold_spacing_mm)
+        self._scalar_controls[u"mep_hot_cold_spacing_mm"] = row.control
+        panel.Children.Add(row.container)
+
+        row = self._build_number_row(
+            u"Maximum branch length warning (mm) - optional, blank = no limit",
+            self._standard.mep_max_branch_length_mm)
+        self._max_branch_length_control = row.control
+        panel.Children.Add(row.container)
+
         material_row = self._build_text_row(u"Default pipe material", self._standard.mep_default_pipe_material)
         self._material_control = material_row.control
         panel.Children.Add(material_row.container)
@@ -244,6 +263,8 @@ class OfficeStandardsPage(object):
         data[u"mep_min_slope_table_percent"] = [
             (dn_mm, _parse_float(control.Text)) for dn_mm, control in self._min_slope_controls]
         data[u"mep_max_slope_percent"] = _parse_float(self._max_slope_control.Text)
+        data[u"mep_max_branch_length_mm"] = _parse_float(
+            self._max_branch_length_control.Text)
         data[u"mep_pipe_capacity_table_du"] = [
             (dn_mm, _parse_float(control.Text)) for dn_mm, control in self._capacity_controls]
         material = (self._material_control.Text or u"").strip()
@@ -280,6 +301,9 @@ class OfficeStandardsPage(object):
             control.Text = _format_number(min_slope_by_dn.get(dn_mm, 0.0))
         self._max_slope_control.Text = (
             u"" if standard.mep_max_slope_percent is None else _format_number(standard.mep_max_slope_percent))
+        self._max_branch_length_control.Text = (
+            u"" if standard.mep_max_branch_length_mm is None
+            else _format_number(standard.mep_max_branch_length_mm))
         capacity_by_dn = dict(standard.mep_pipe_capacity_table_du)
         for dn_mm, control in self._capacity_controls:
             control.Text = _format_number(capacity_by_dn.get(dn_mm, 0.0))

@@ -6,6 +6,63 @@
   [ADR-0004](../ADR/0004-mep-vertical-slice-sanitary-first.md) (vertical-slice
   strategy this engine is built under).
 
+## Current implementation status (2026-07-16)
+
+The active pushbuttons are **Route Water Supply**, **Route Cold Water**, and
+**Route Hot Water**. Route Water Supply is a combined start window over the
+same Cold/Hot flows; the separate buttons remain available for direct
+single-system runs.
+Their intentionally narrow contract is: one selected room, selected fixtures
+with exactly one unconnected Domestic Cold Water or Domestic Hot Water inlet,
+one or more confirmed straight walls, a picked incoming water-main point/height
+or existing main-pipe tie-in, and a picked valve routing point/height.
+The valve is a routing break/position in this slice; no valve family is
+placed yet. The user chooses the trunk routing mode: in the ceiling, through
+the floor, or in the walls. That mode sets the trunk elevation; the same
+routing graph then makes fixture branches drop, rise, or connect in-wall
+based on the real fixture connector elevations. The upstream water-main/valve
+feed follows the selected wall network in the current stable slice. Direct
+open-space feed routing is deferred until real valve accessory placement is
+built and validated. Two fixtures may not share the same projected tap because
+cross/manifold routing is outside this slice.
+
+Manual ribbon validation confirmed that the Cold Water route produces the
+intended trunk-and-branch layout for selected fixtures on one wall. This
+validates the active slice's first geometry scope. The current slice now
+supports multiple connected straight walls; curved walls, branching wall
+paths, disconnected wall selections, and multi-room distribution remain
+deferred.
+
+Route Hot Water reuses the same workflow with `DomesticHotWater` connector
+classification and `Domestic Hot Water` Revit piping system type. Its
+wall-derived trunk/corridor is offset from the Cold Water wall reference by
+`Standard.mep_hot_cold_spacing_mm` (default 50 mm), with a signed per-run
+override so the user can flip sides when the model calls for it. Pure-domain
+tests cover Hot Water routing graph generation, but manual Revit validation
+is still required before Hot Water is called live-verified.
+
+That manual validation predates the picked incoming-main/valve routing
+workflow. End-to-end manual ribbon validation of the new upstream feed and
+three trunk modes is still required before they are described as
+live-verified.
+
+The implemented pipeline is the required three-stage flow:
+
+1. `routing_graph.py` builds the pure graph.
+2. `pipe_geometry_writer.py` creates all feed, trunk and branch pipes.
+3. `fitting_generation_writer.py` connects fixture inlets and then creates
+   feed fittings, branch elbows, trunk tees, and the final elbow.
+
+All required creation/connection failures fail the result so
+`water_supply_flow.py` rolls back the complete route. A rolled-back MCP test
+in the real **Toilet Test File** created 6 pipes for two fixtures, then
+created 1 tee and 3 elbows, connected both fixture inlets, and restored the
+document to 0 pipes and disconnected fixture connectors after rollback.
+
+Automatic valve placement in this pushbutton, curved/branching wall corridors,
+sizing, collision avoidance, route preview, crossover bends, and multi-room
+distribution remain deferred.
+
 This is the engineering specification for the routing engine: not just what
 it does, but why it behaves the way it does. A new developer should be able
 to understand the routing engine by reading this document before reading any
@@ -17,11 +74,10 @@ shifts) are updated together, not sequentially.
 
 ## 1. Vision and Design Philosophy
 
-The Routing Graph is meant to become one of BK BIM Tools' core shared
-services — every future routing tool (Water Supply, Sanitary, Vent, Storm,
-Fire Protection, Gas, and eventually non-pipe systems) consumes the same
-engine rather than each discipline inventing its own. This is infrastructure,
-not a one-off plumbing script.
+The Routing Graph is currently proven by the Water Supply slice. Its naming
+allows another pipe-flow consumer to reuse it, but reuse is decided only when
+that real second consumer is built. It is not a promise that every future MEP
+discipline, especially non-pipe systems, must fit this shape.
 
 That ambition is deliberately built **inside-out, one proven layer at a
 time** — not speculatively all at once. [ADR-0002](../ADR/0002-vertical-slice-first.md)'s
@@ -53,11 +109,11 @@ optimize for shortest total pipe length.
    uninterrupted, through the whole corridor to the furthest target; every
    intermediate target taps off via a Junction/Tee without breaking trunk
    continuity.
-3. **Every segment is axis-aligned** — parallel or perpendicular to the
-   corridor's own local direction. No diagonals, anywhere, ever. (The
-   original, rejected Water Supply cut violated this by connecting fixtures
-   directly to a shared point; that's the bug this rule exists to prevent
-   from recurring.)
+3. **Every trunk, feed and fixture-branch segment follows the selected wall
+   corridor or a controlled perpendicular/vertical transition.** No diagonal
+   fixture branches, ever. The experimental open-space direct-feed path is
+   deferred because it requires a real valve accessory/connector workflow,
+   not a fake tee at a visual valve drop.
 4. **A target's order along the trunk is its distance *along the corridor*,
    not straight-line distance from the origin.** These differ the moment the
    corridor isn't a single straight segment — always use
@@ -74,23 +130,57 @@ optimize for shortest total pipe length.
 
 ## 3. Water Supply Routing Rules
 
-- One `RoutingGraph` per system (Cold, Hot — built independently, never
-  merged into one graph even when both are requested in the same run).
-- Origin = the valve's location (§9 — valve *placement* is a separate later
-  concern; the routing graph only needs the valve's *position*).
-- Corridor = the confirmed wall(s)' centerline(s), offset by
-  `Standard.mep_in_wall_offset_mm` (not yet given a real value — ask before
-  trusting a default, same disclosure rule as every other unconfirmed
-  `mep_*` field).
-- Branch shape: perpendicular exit from the fixture connector → straight
-  stub of `Standard.mep_wall_penetration_mm` (= 80mm, product-owner-
-  confirmed) toward the corridor → one 90° turn → parallel run to the tap
-  point → Tee into the trunk.
-- Hot + Cold together: two independent corridors/graphs, offset from each
-  other by `Standard.mep_hot_cold_spacing_mm` (= 150mm, product-owner-
-  confirmed), built with the same logic so they stay visually parallel.
-- No sizing engine yet (§10) — each branch segment is sized from the
-  fixture's own connector diameter.
+- Each current Water Supply pushbutton builds one `RoutingGraph`: Domestic
+  Cold Water for Route Cold Water, or Domestic Hot Water for Route Hot Water.
+- Origin = the selected valve routing point projected onto the confirmed
+  wall at the chosen trunk elevation. The incoming main and valve point are
+  modeled as upstream feed pipes before the trunk, but the valve itself is
+  not a placed family instance yet.
+- Incoming/source can be either a clicked point at a user-entered elevation
+  or a selected existing main pipe. For an existing pipe, the clicked tie-in
+  point is projected onto the real pipe curve. The fitting pass then attempts
+  an endpoint elbow/union when the tie-in is near a pipe end, or a mid-pipe
+  split + tee when the tie-in is on the pipe run. Reducers are not supported
+  yet, so the selected pipe diameter is used as the source diameter
+  constraint when readable.
+- Feed route mode: the current stable slice uses `Follow selected walls`.
+  It projects the valve/origin onto the wall network and lets the upstream
+  feed bridge to that projected trunk start. The attempted
+  `Direct through ceiling/floor` path is deferred until a real valve family
+  placement/accessory pass supplies proper connectors at the valve drop.
+- Hot/cold coordination: Cold Water uses the selected wall/corridor reference
+  directly. Hot Water applies a lateral offset to that corridor using
+  `Standard.mep_hot_cold_spacing_mm` (50 mm office default). A signed per-run
+  override is allowed so negative values can flip the side; zero/effectively
+  zero offsets are rejected because they would generate overlapping hot/cold
+  pipes at the same trunk elevation. This is a practical anti-clash rule, not
+  a full collision engine.
+- Ceiling/main-above-valve feed shape: when the incoming/source elevation and
+  post-valve trunk elevation are both above the selected valve height, the
+  upstream feed must not drop to the valve point and rise back up on the same
+  vertical line. It drops before the valve, runs horizontally through the
+  valve point at valve height, and rises after the valve. This leaves a real
+  horizontal segment where the valve family will later be inserted and avoids
+  a stacked 180-degree pipe condition.
+- Trunk routing mode controls the corridor Z:
+  in-ceiling uses `ceiling height above level + offset above ceiling`;
+  through-floor uses `level/FFL - offset below floor`; in-wall uses a direct
+  trunk elevation above level.
+- Corridor = the confirmed straight wall location lines, at the selected
+  trunk elevation. Selected walls may intersect without being manually split,
+  but the fixture-serving route must still resolve to one non-branching path.
+- The trunk starts at the projected origin and follows the wall continuously
+  to the furthest selected fixture projection. Fixtures never bend or chain
+  the trunk.
+- For the supported same-wall case, each branch runs horizontally from the
+  fixture inlet to the wall projection at the inlet elevation, then
+  vertically to the trunk elevation. The first turn gets an elbow; interior
+  taps get tees and the final tap gets an elbow.
+- `Standard.mep_wall_penetration_mm` is a validation reference, not a forced
+  segment length. `Standard.mep_max_branch_length_mm` is an optional warning
+  threshold.
+- Branches use their fixture connector diameter. The trunk diameter is an
+  explicit user input because no approved sizing engine exists.
 
 ## 4. Sanitary Routing Rules
 
@@ -137,11 +227,9 @@ not attempted yet.
 
 **Multi-wall corridors:** a corridor may span more than one confirmed wall
 (a connected sequence, e.g. two walls meeting at a corner) — `RoutingCorridor`
-already accepts an arbitrary ordered point list, so this isn't a structural
-limitation, but building the UI/adapter logic that turns "the walls the user
-picked" into one ordered, connected point sequence (deciding which end
-connects to which) hasn't been built yet either. Currently assumes a single
-confirmed wall (or an already-ordered point list supplied directly).
+now receives an ordered, connected path from the Revit adapter. The adapter
+inserts virtual nodes where selected wall centerlines intersect and rejects
+disconnected, branching, looped, or curved selections for this slice.
 
 ## 7. Branch Generation Rules
 
@@ -173,11 +261,8 @@ that apply regardless of discipline:
   Tee. The furthest gets an `EndNode` + a plain Elbow instead — nothing
   continues past it, so there's nothing for a Tee to preserve continuity
   for.
-- Tee fitting creation (`NewTeeFitting`) has **never been live-tested** in
-  this codebase — a different Revit API call than the already-proven
-  `NewElbowFitting` (joins 3 connectors, not 2). This needs its own rolled-
-  back live spike before Phase 3 (§16) is trusted with it, same bar every
-  other new Revit API surface in this project has had to clear.
+- Tee fitting creation (`NewTeeFitting`) is live-verified in the real test
+  document, including the current two-fixture Cold Water flow (rolled back).
 
 ## 9. Fitting Placement Strategy
 
@@ -189,21 +274,18 @@ half-built pipe state and is easier to test/debug independently: a fitting
 bug can be isolated from a pipe-geometry bug by construction, not by
 inspection.
 
-Only `FittingPlan.KIND_ELBOW` (proven live) and the new, generic
-`FittingPlan.KIND_TEE` (not yet built — distinct from the existing,
-Sanitary-specific `KIND_TEE_SANITARY` sweep/wye, since water-supply tees have
-no such sweep-entry requirement) are in scope for Water Supply's first cut.
-Reducers, couplings, and gap repair are named in the product owner's spec
-as Phase 3 responsibilities but not yet designed in any detail here.
+The current writer calls Revit's `NewElbowFitting` and `NewTeeFitting`
+directly from graph junctions; it does not introduce a second fitting-plan
+model. Reducers, couplings, and gap repair are not supported by this slice.
 
 ## 10. Pipe Sizing Philosophy
 
 **Not built for Water Supply.** A fixture-unit-based sizing method (BS 8558 /
 BS EN 806-3 or otherwise) has not been decided with the product owner —
 this engine does not guess one (ADR-0004's own rule, applied to itself).
-Every Water Supply segment is currently sized from the routing target's own
-connector diameter. Sanitary Drainage's sizing (BS EN 12056-2 shape) is
-unrelated and unaffected — see §4.
+Each branch uses its routing target's connector diameter. The trunk uses an
+explicit diameter entered by the user. Sanitary Drainage's sizing (BS EN
+12056-2 shape) is unrelated and unaffected — see §4.
 
 ## 11. Collision Handling Strategy
 
@@ -218,9 +300,10 @@ structure) waits for a real case that demands it.
 
 ## 12. Validation Rules
 
-Standing rule across the whole engine: **every check that can fail produces
-a warning string on the relevant plan/graph object, never an exception and
-never a silent no-op.** Concretely, so far:
+Standing rule across the whole engine: recoverable constructability concerns
+become warnings; invalid inputs and required Revit creation/connection
+failures become explicit failed results and trigger rollback. Nothing is
+silently ignored. Concretely, so far:
 - A routing target with no matching connector is skipped, with a warning
   naming which one and why (`sanitary_validation.py`, mirrored for Water
   Supply in `generate_water_supply_command.py`).
@@ -277,16 +360,16 @@ thing.
   target list without this module changing.
 
 Zero Revit imports anywhere in this file (ADR-0001) — fully unit-tested
-under plain CPython, 12 tests as of this writing
+under plain CPython, 22 tests as of this writing
 (`tests/unit/test_routing_graph.py`).
 
 ## 15. Geometry Generation Workflow (Phase 2)
 
-**Not built yet.** Will consume a `RoutingGraph` and create real `Pipe`
-elements for every `RouteSegment` in the corridor + every branch — nothing
-else. No fittings, no accessories, no connections at this stage; the goal is
-purely to verify the graph produces the expected trunk-and-branch layout in
-real geometry before any joining logic runs.
+**Shipped and live-verified** (`revit/adapter/mep/pipe_geometry_writer.py`).
+Consumes a `RoutingGraph` and creates every non-zero trunk and branch `Pipe`,
+plus optional upstream feed pipes supplied by the Water Supply adapter,
+before any fitting or connector operation. A genuine segment failure returns
+a failed `Result`; the caller rolls back the complete route.
 
 ## 16. Fitting Generation Workflow (Phase 3)
 
@@ -302,18 +385,57 @@ Elbow within a branch's own path wherever it has more than one real pipe
 Phase 2 created; never influences routing decisions itself — by the time
 this runs, the path is already fixed.
 
-Live-verified full pipeline (Phase 1 → 2 → 3 together) against the real
-project: 1 Tee (basin's interior junction) + 1 direct connection (WC's last
-junction, zero branch pipes) + 0 elbows (basin's branch only had one real
-pipe after Phase 2's skip-if-too-short rule), 0 failures, rolled back.
+Live-verified current pipeline (Phase 1 → 2 → 3 together) against the real
+project on 2026-07-16: 2 trunk pipes + 4 branch pipes, 1 Tee, 3 Elbows,
+2 fixture inlet connections, 0 failures. The containing transaction group
+was rolled back; the document returned to 0 pipes and both inlets returned
+to disconnected.
+
+The upstream feed path for the picked incoming-main/valve workflow has a
+separate MCP rollback validation: 3 temporary feed pipes + 1 trunk pipe were
+created, 3 elbows joined the feed/trunk path, and the document returned to
+its original pipe count after rollback. The full interactive click-through
+still requires manual ribbon validation.
+
+Direct feed can land on the first fixture tap instead of before it. In that
+case the final feed pipe is the upstream trunk side for the first Tee, so the
+fitting pass must include that feed connector when evaluating the first
+junction. It must not first consume that connector with a separate feed-to-
+trunk elbow/union.
+
+Interactive through-floor multi-wall testing exposed a feed-to-trunk gap
+when the picked valve point was near the wall but not exactly on the wall-
+projected corridor. The feed builder now terminates at the wall-projected
+trunk origin, preserving the valve click as a routing break while ensuring
+the generated feed endpoint and trunk endpoint are coincident for Revit
+fittings.
+
+The wall-corridor adapter no longer requires manually split wall elements at
+turns. It treats selected straight walls as a small plan network, inserts
+virtual nodes at centerline intersections, projects the valve and fixture
+targets onto that network, and returns the connected wall path that reaches
+the selected fixtures. This is still a single-route slice: fixture targets
+that require branching wall paths are rejected.
+
+The valve/origin point is allowed to sit away from the fixture wall
+corridor. It is projected to the nearest point on the selected wall network;
+the upstream feed route bridges from the picked valve location to that
+projected trunk origin. Fixture targets still need to be near the selected
+fixture-wall corridor because they define the blue trunk-and-branch route.
+
+The connected straight-wall corridor has a separate MCP rollback validation:
+2 temporary trunk pipes were created around a corridor corner, 1 elbow joined
+the trunk corner, and the document returned to its original pipe count after
+rollback.
 
 ## 17. Accessory Placement Workflow (Phase 4)
 
-**Shipped and live-verified 2026-07-10** (`revit/adapter/mep/accessory_placement_writer.py`),
-scoped to one isolation valve at the trunk's origin - balancing valves,
-meters, tags, supports, and insulation are still not built. The routing
-engine does not depend on this; this depends on the routing engine (and on
-Phase 2/3 geometry already existing).
+**Spiked and live-verified 2026-07-10 but not wired into the active
+pushbutton** (`revit/adapter/mep/accessory_placement_writer.py`), scoped to
+one isolation valve at the trunk's origin - balancing valves, meters, tags,
+supports, and insulation are still not built. The routing engine does not
+depend on this; this depends on the routing engine (and on Phase 2/3
+geometry already existing).
 
 Placing a real valve family instance was a genuinely new Revit API surface
 for this codebase (nothing had placed a `FamilyInstance` accessory before -
@@ -327,10 +449,11 @@ valve family (`LFFBVD-PEX-F1960`) already loaded in the project, placed at
 the trunk's origin and connected to the first trunk pipe - worked first
 try, full Phase 2→3→4 pipeline together, rolled back.
 
-Known simplification: the valve is placed AT the origin (where the trunk
-begins) and only ONE of its two connectors is joined (to the trunk) - the
-other, representing the incoming supply main, is left unconnected, since
-modelling the incoming main itself is out of this engine's scope.
+Known simplification of that spike: the valve was placed AT the origin
+(where the trunk begins) and only ONE of its two connectors was joined (to
+the trunk). The active picked incoming-main/valve workflow now models the
+upstream feed geometry, so accessory placement needs a fresh integration
+slice before it is reintroduced to the ribbon tool.
 
 ## 18. Performance Considerations
 
@@ -342,17 +465,22 @@ multi-room or whole-building case actually demands it (§20) — not before.
 
 - Sizing (Water Supply): none — every segment uses the target's own
   connector diameter, no fixture-unit-based calculation.
-- Corridor selection: fully manual (user-confirmed walls), no automatic
-  wall/corridor detection.
-- Multi-wall corridors: structurally supported by `RoutingCorridor`, but the
-  UI/adapter glue to turn multiple confirmed walls into one ordered point
-  sequence doesn't exist yet — currently assumes a single wall or an
-  already-ordered list.
+- Corridor selection: nearest walls are suggested, but the user explicitly
+  confirms the final wall.
+- The active pushbutton supports one connected path of straight walls. Curved
+  walls, loops, branches, and disconnected wall selections are rejected.
+- One branch per projected trunk tap. Coincident taps are rejected before
+  Revit geometry is created.
+- A branch whose horizontal distance to the confirmed wall corridor differs
+  substantially from the configured rough-in distance remains a warning, not
+  a silent assumption. Warnings name the fixture (family/type/id), never a
+  raw Revit `Connector` object.
 - Door/window/structural-element handling: validation-only (warn), no
   automatic avoidance or rerouting.
-- Valve placement: routing-origin-only; no real component is placed.
+- Valve placement: excluded from the active pushbutton.
 - Debug Mode / Developer Mode: not built.
-- Tee fitting creation: not live-verified yet (§8).
+- Interactive room/fixture/wall/origin picking still requires a manual
+  ribbon click-through; MCP validated the exact non-interactive flow function.
 - Only pipe-flow disciplines are proven (Sanitary, Water Supply so far) —
   Cable Trays/Conduits/Ductwork compatibility with this graph shape is
   unproven, regardless of the generic naming (§1).
@@ -368,7 +496,8 @@ multi-room or whole-building case actually demands it (§20) — not before.
   graph shape (§1, §20) — not built ahead of a real case that needs it.
 - Sizing engines for both Sanitary (a real EN 12056-2 verification pass) and
   Water Supply (a fixture-unit method, once chosen).
-- Real valve/accessory placement (Phase 4, §17).
+- Reintegrate the already-spiked valve/accessory writer only when a later
+  approved pushbutton slice defines the incoming-main and valve behavior.
 
 ## 21. Architectural Decision Log
 

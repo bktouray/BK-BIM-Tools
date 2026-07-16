@@ -1,0 +1,128 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Water Supply"
+    Width="520"
+    SizeToContent="Height"
+    MinWidth="460" MinHeight="360"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <!-- Combined Water Supply start window. Uses the shared design tokens from
+         ui/themes/Tokens.xaml, merged in code-behind before this file parses. -->
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="TextBlock" x:Key="SectionTitle">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,20,0"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock Text="Water Supply" FontSize="20" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock Text="Route Domestic Cold Water, Domestic Hot Water, or both using the proven wall-corridor workflow."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,16"/>
+
+        <Border Grid.Row="2" Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="Systems" Style="{StaticResource SectionTitle}"/>
+                <StackPanel Orientation="Horizontal">
+                    <CheckBox x:Name="ColdCheck" Content="Cold Water"/>
+                    <CheckBox x:Name="HotCheck" Content="Hot Water"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3" Style="{StaticResource Card}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="Pipe types" Style="{StaticResource SectionTitle}"/>
+
+                <StackPanel Grid.Row="1" Grid.Column="0">
+                    <Label Content="Cold Water pipe type"/>
+                    <ComboBox x:Name="ColdPipeTypeCombo" Height="28"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="2">
+                    <Label Content="Hot Water pipe type"/>
+                    <ComboBox x:Name="HotPipeTypeCombo" Height="28"/>
+                </StackPanel>
+
+                <CheckBox Grid.Row="2" Grid.ColumnSpan="3" x:Name="UseSamePipeTypeCheck"
+                          Content="Use the same pipe type for both systems"
+                          Margin="0,12,0,0"/>
+
+                <TextBlock Grid.Row="3" Grid.ColumnSpan="3"
+                           Text="Hot Water will use the configured hot/cold spacing offset so it does not sit directly on top of Cold Water."
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="4" x:Name="StatusText" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Start Routing" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

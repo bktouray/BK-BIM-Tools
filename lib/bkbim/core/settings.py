@@ -19,6 +19,46 @@ LAYER_SESSION = u"session"
 _LAYER_ORDER = (LAYER_DEFAULTS, LAYER_OFFICE, LAYER_USER, LAYER_PROJECT, LAYER_SESSION)
 
 
+try:
+    _TEXT_TYPE = unicode
+    _BINARY_TYPE = str
+    _PYTHON2 = True
+except NameError:
+    _TEXT_TYPE = str
+    _BINARY_TYPE = bytes
+    _PYTHON2 = False
+
+
+def _json_safe(value):
+    """Normalizes byte strings before IronPython's JSON encoder sees them."""
+    # IronPython 2 represents Revit's System.String as ``str``/``unicode``
+    # simultaneously, but json's ensure_ascii encoder still treats non-ASCII
+    # characters as ANSI bytes. UTF-8 encoding here makes json emit portable
+    # ASCII ``\\uXXXX`` escapes instead of consulting the Windows code page.
+    if _PYTHON2 and isinstance(value, (_TEXT_TYPE, _BINARY_TYPE)):
+        try:
+            return value.encode("utf-8")
+        except Exception:
+            try:
+                return value.decode("utf-8").encode("utf-8")
+            except Exception:
+                return value.decode("latin-1").encode("utf-8")
+    if isinstance(value, _TEXT_TYPE):
+        return value
+    if isinstance(value, _BINARY_TYPE):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value.decode("latin-1")
+    if isinstance(value, dict):
+        return dict(
+            (_json_safe(key), _json_safe(item))
+            for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 class SettingsStore(object):
     """Holds one dict per layer; get() merges them in priority order (session wins)."""
 
@@ -38,7 +78,9 @@ class SettingsStore(object):
 
     def save_layer_to_json(self, layer, path):
         with open(path, "w") as f:
-            json.dump(self._layers.get(layer, {}), f, indent=2, sort_keys=True)
+            json.dump(
+                _json_safe(self._layers.get(layer, {})),
+                f, indent=2, sort_keys=True)
 
     def get(self, key, default=None):
         value = default

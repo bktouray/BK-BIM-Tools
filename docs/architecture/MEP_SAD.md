@@ -1,13 +1,46 @@
 # BK BIM Tools — MEP Platform Software Architecture Document (SAD)
 
-- **Product:** BK BIM Tools — MEP Platform (long-term), **first vertical slice: Sanitary Drainage**
-- **Status:** Draft v0.1 (2026-07-09)
+- **Product:** BK BIM Tools — MEP Platform (long-term)
+- **Status:** Living document; active slice updated 2026-07-16
 - **Governing decision:** [ADR-0004](../ADR/0004-mep-vertical-slice-sanitary-first.md) — build
   Sanitary Drainage end-to-end first, extract the shared MEP framework once a
   second discipline needs it. Inherits the base suite architecture from
   [SAD.md](SAD.md) and [ADR-0001](../ADR/0001-python-engine-strategy.md)/
   [ADR-0002](../ADR/0002-vertical-slice-first.md)/[ADR-0003](../ADR/0003-extension-consolidation.md) —
   this document only adds what's new for MEP.
+
+## Active implementation update (2026-07-16)
+
+Sanitary Drainage remains paused. The active water-supply ribbon tools are
+`MEP.panel/GenerateWaterSupplyCombined.pushbutton`, titled **Route Water
+Supply**, `MEP.panel/GenerateWaterSupply.pushbutton`, titled **Route Cold
+Water**, and `MEP.panel/GenerateHotWater.pushbutton`, titled **Route Hot
+Water**. The combined button is an orchestration/start window over the same
+Cold/Hot flows; it does not introduce separate routing logic.
+Their current contract is one room, selected unconnected cold/hot fixture
+inlets, one connected straight-wall path, a picked incoming water-main
+point/height or selected existing main-pipe tie-in, a picked valve routing
+point/height, and one selected trunk mode: in the ceiling, through the floor,
+or in the walls. The valve is a routing point only in this slice; automatic
+valve-family placement remains deferred. All feed, trunk, and branch pipes
+are created before fittings and connector joins; failure rolls back the
+complete route. Hot Water offsets its wall-derived corridor from the Cold
+Water wall reference using `Standard.mep_hot_cold_spacing_mm` (50 mm office
+default), with a signed per-run override for flipping sides. Cold Water has
+manual user validation; Hot Water still requires manual Revit validation
+before being described as live-verified.
+
+The actual source-of-truth implementation is:
+
+- pure graph: `domain/mep/routing/routing_graph.py`
+- command: `app/commands/generate_water_supply_command.py`
+- graph-to-pipes: `revit/adapter/mep/pipe_geometry_writer.py`
+- fittings/connections: `revit/adapter/mep/fitting_generation_writer.py`
+- transaction/UI flow: `revit/adapter/mep/water_supply_flow.py`
+
+The older Sanitary-first sections below retain the architectural history.
+Where they describe Water Supply as design-only or Revit fittings as
+unverified, this update and the current files above supersede them.
 
 Every section below names the engine requested in the original platform brief,
 states what Sanitary Drainage's slice actually needs from it, and states
@@ -176,15 +209,15 @@ no separate "furthest fixture" distance calculation is needed once the
 corridor itself is the path; "furthest" simply falls out as "last along the
 corridor."
 
-### Valves — a separate layer, not a placement concern (product owner's
-### explicit resolution of the open question from the previous round)
-The routing engine uses the **valve's location** as the trunk's origin point,
-full stop — regardless of whether a real valve family instance is ever
-placed there. Physical valve placement (a `FamilyInstance`/`PipeAccessory`,
-a genuinely new, unspiked Revit API capability) is explicitly deferred to
-*after* routing is generated and proven, as its own later pass — not blocking
-pipe/fitting geometry at all. This resolves the fork raised in the previous
-design round.
+### Incoming main and valve routing point
+The active Cold Water flow now follows the requested water-main -> valve ->
+fixtures sequence. The user picks an incoming water-main plan point and
+height, then picks the valve plan point and height. The valve is still a
+routing break/position, not an automatically placed `PipeAccessory`. Upstream
+feed pipes are created as geometry first and joined in the fittings pass,
+after every generated route pipe exists. Physical valve placement remains a
+later, separate accessory capability: the route never creates, replaces, or
+chooses valve families.
 
 ### Per-fixture branch — engineering rules (refined)
 Fixture connector → perpendicular exit → straight stub into the nearest wall
@@ -223,7 +256,7 @@ be exactly the kind of speculative generalization ADR-0002 warns against.
 
 ### Hot + Cold together
 Two independent corridors/trunks (own valve origin, own tees, own branches
-each), offset from each other by `Standard.mep_hot_cold_spacing_mm = 150.0`
+each), offset from each other by `Standard.mep_hot_cold_spacing_mm = 50.0`
 (product owner's own confirmed number) — same corridor, offset in the
 perpendicular-to-wall direction, so they stay visually parallel throughout.
 

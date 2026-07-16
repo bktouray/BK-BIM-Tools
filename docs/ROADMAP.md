@@ -3,6 +3,20 @@
 - **Status:** Draft v0.1 (2026-07-05)
 - Strategy: **vertical slice first, framework by extraction** (ADR-0002).
 
+## Active MEP checkpoint — 2026-07-16
+
+**Route Cold Water** now implements the first narrow end-to-end Water Supply
+slice: one room, selected fixtures, one connected straight-wall path, picked
+or existing-pipe incoming main and valve routing point, pure graph, all pipes,
+then fittings and fixture connections in an atomic transaction. Cold Water has
+been manually validated by the product owner. **Route Hot Water** now reuses
+that same flow with Domestic Hot Water connectors/system type; it still needs
+manual Revit validation.
+
+Next MEP work should harden Cold/Hot Water from real user feedback before
+adding valve-family placement, curved/branching wall corridors, sizing,
+collision avoidance, coordinated hot/cold offsets, or preview.
+
 ## Phases
 
 | Phase | Goal | Exit criteria |
@@ -32,8 +46,9 @@
   Developer Mode.
 - **MEP (long-term platform, ADR-0004):** Sanitary Drainage shipped a real
   pushbutton (room pick/highlight, wall detect/confirm, live-tested end-to-end)
-  then **paused 2026-07-10** in favor of **Water Supply (Cold/Hot Water,
-  active slice now)** — simpler (pressure-fed, pipe types already loaded).
+  then **paused 2026-07-10** in favor of **Water Supply**. The active
+  2026-07-16 slice has proven Cold Water and introduced Hot Water as the
+  first reuse sibling pending manual Revit validation.
   See [architecture/MEP_SAD.md](architecture/MEP_SAD.md) and
   [ADR-0004's update](ADR/0004-mep-vertical-slice-sanitary-first.md). Still
   to come: Vent, Storm, Grey/Black Water, Rainwater Harvesting, Fire

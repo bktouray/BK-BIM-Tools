@@ -20,19 +20,36 @@ class FixtureInfo(object):
         # string, not looked up automatically yet.
         self.fixture_type_key = fixture_type_key
 
-    def primary_connector(self, system_classification):
-        """Requires flow_direction != FLOW_IN, not just a matching
-        system_classification label - a real family (Roca shower column,
-        found live 2026-07-10) labels its water-supply connectors as
-        SANITARY while correctly recording them as inlets. An inlet can
-        never be a drain outlet regardless of what the family calls it.
+    def matching_connectors(self, system_classification, allowed_flow_directions=None):
+        """Returns primary connectors matching the requested system and flow.
+
+        ``allowed_flow_directions`` is explicit because the same fixture is
+        viewed from opposite roles by the two real MEP consumers:
+
+        - Sanitary Drainage needs an outlet/bidirectional connector.
+        - Water Supply needs an inlet/bidirectional connector.
+
+        Keeping the role at the call site prevents the old bug where the
+        Sanitary-specific "never use an inlet as a drain outlet" rule also
+        rejected valid Domestic Cold/Hot Water inlet connectors.
         """
         from bkbim.domain.mep.models.connector_info import ConnectorInfo
-        for c in self.connectors:
+
+        if allowed_flow_directions is None:
+            allowed_flow_directions = (
+                ConnectorInfo.FLOW_OUT, ConnectorInfo.FLOW_BIDIRECTIONAL)
+
+        allowed = set(allowed_flow_directions)
+        return [
+            c for c in self.connectors
             if (c.system_classification == system_classification and c.is_primary
-                    and c.flow_direction != ConnectorInfo.FLOW_IN):
-                return c
-        return None
+                and c.flow_direction in allowed)
+        ]
+
+    def primary_connector(self, system_classification, allowed_flow_directions=None):
+        matches = self.matching_connectors(
+            system_classification, allowed_flow_directions=allowed_flow_directions)
+        return matches[0] if matches else None
 
     def __repr__(self):
         return u"<FixtureInfo {0}:{1} ({2} connectors)>".format(

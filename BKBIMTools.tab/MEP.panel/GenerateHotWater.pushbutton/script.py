@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-__title__ = u"Route\nCold Water"
+__title__ = u"Route\nHot Water"
 # NOTE: __author__/__authors__ must stay literal strings, never imported
 # names - pyRevit reads them via static AST parsing (ast.literal_eval).
 # __authors__ (plural) is the one this pyRevit build actually applies.
 __author__ = u"Baboucarr Katim Touray"
 __authors__ = [u"Baboucarr Katim Touray"]
-__doc__ = u"""Routes one selected room's unconnected Domestic Cold Water
-fixture inlets from a picked incoming main and valve routing point along one
-confirmed connected wall path.
+__doc__ = u"""Routes one selected room's unconnected Domestic Hot Water
+fixture inlets from a picked or existing incoming main and valve routing
+point along one confirmed connected wall path.
 Creates the feed, wall-derived trunk, fixture branches and fittings.
 Any required pipe, fitting or connector failure rolls back the whole route.
 """
@@ -20,12 +20,12 @@ from Autodesk.Revit.DB.Plumbing import PipeType
 from bkbim.core.tool_memory import recall, remember
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.element_naming import type_name
-from bkbim.revit.adapter.mep.water_supply_flow import run_wizard
+from bkbim.revit.adapter.mep.water_supply_flow import HOT_WATER, run_wizard
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-_PIPE_TYPE_KEY = u"mep.water_supply.pipe_type_name"
+_PIPE_TYPE_KEY = u"mep.hot_water.pipe_type_name"
 
 
 def _pick_pipe_type():
@@ -35,15 +35,12 @@ def _pick_pipe_type():
         return None
     names = sorted(set(type_name(pt) for pt in pipe_types))
 
-    # Surface last run's pick at the top of the list (Tool Memory, PROJECT
-    # layer) - see sanitary_drainage's own _pick_pipe_type() for why this,
-    # not a real pre-selection, is the honest equivalent here.
     remembered = recall(_PIPE_TYPE_KEY, doc=doc)
     if remembered in names:
         names = [remembered] + [n for n in names if n != remembered]
 
     return forms.SelectFromList.show(
-        names, title=u"Pick the pipe type for Cold Water", multiselect=False)
+        names, title=u"Pick the pipe type for Hot Water", multiselect=False)
 
 
 def main():
@@ -52,7 +49,8 @@ def main():
         return
 
     standard = load_office_standard()
-    routed_count, message = run_wizard(uidoc, doc, standard, pipe_type_name)
+    routed_count, message = run_wizard(
+        uidoc, doc, standard, pipe_type_name, system_classification=HOT_WATER)
     if message:
         forms.alert(message, title=__title__)
     if routed_count:

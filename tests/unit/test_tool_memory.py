@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+import bkbim.core.tool_memory as tool_memory
 from bkbim.core.settings import LAYER_PROJECT, LAYER_USER, get_settings
 from bkbim.core.tool_memory import recall, remember
 
@@ -99,3 +100,26 @@ def test_recall_survives_a_corrupted_memory_file(tmp_path, monkeypatch):
     doc = _FakeDoc(u"Test Project")
 
     assert recall(u"anything", default=u"fallback", doc=doc) == u"fallback"
+
+
+def test_remember_does_not_raise_when_storage_raises_value_error():
+    settings = get_settings()
+    original_path = tool_memory.project_settings_path
+    original_load = settings.load_layer_from_json
+    original_save = settings.save_layer_to_json
+
+    def _raise_value_error(layer, path):
+        raise ValueError(u"simulated JSON encoding failure")
+
+    try:
+        tool_memory.project_settings_path = lambda doc: u"unused.json"
+        settings.load_layer_from_json = lambda layer, path: None
+        settings.save_layer_to_json = _raise_value_error
+        remember(
+            u"mep.water_supply.pipe_type_name",
+            u"Valsir Pexal\u00ae Standard",
+            doc=_FakeDoc(u"Test Project"))
+    finally:
+        tool_memory.project_settings_path = original_path
+        settings.load_layer_from_json = original_load
+        settings.save_layer_to_json = original_save

@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Finds which wall each fixture sits closest to (product owner request,
-2026-07-10, alongside room selection). Informational only for now - NOT
-wired into routing (MEP_SAD.md Sec 5's direct-point-to-point routing is
-unchanged); this exists so a future options window can show "this WC is
-against the North wall" and so routing-along-a-wall can be built later once
-this detection itself has been used and trusted, matching the same
-ship-the-read-before-the-write discipline as every other adapter here.
+"""Finds which wall each fixture connector sits closest to.
+
+Water Supply uses this as the candidate-wall read before explicit user
+confirmation. Sanitary Drainage can still call it without a system role.
 
 Uses `Curve.Project()` on each wall's own location line - a standard, low-
 risk Revit API technique already used elsewhere in this suite's dimensioning
@@ -86,20 +83,30 @@ def find_nearest_wall(doc, point_mm, walls=None, max_distance_mm=DEFAULT_MAX_DIS
                         distance_mm=dist_mm)
 
 
-def find_nearest_walls_for_fixtures(doc, fixtures, max_distance_mm=DEFAULT_MAX_DISTANCE_MM):
-    """fixtures: list[FixtureInfo] (uses each fixture's first connector
-    position as its location - close enough for "which wall is this fixture
-    against", not precise host-face detection).
+def find_nearest_walls_for_fixtures(
+        doc, fixtures, max_distance_mm=DEFAULT_MAX_DISTANCE_MM,
+        system_classification=None, allowed_flow_directions=None):
+    """fixtures: list[FixtureInfo].
+
+    When ``system_classification`` is supplied, proximity is measured from
+    that system's selected connector role. Otherwise the legacy first-
+    connector behavior is preserved for existing callers.
 
     :rtype: dict {element_id_token(fixture.ref): NearestWall or None}
     """
     walls = _collect_walls(doc)
     result = {}
     for fixture in fixtures:
-        if not fixture.connectors:
+        if system_classification is None:
+            connector = fixture.connectors[0] if fixture.connectors else None
+        else:
+            connector = fixture.primary_connector(
+                system_classification,
+                allowed_flow_directions=allowed_flow_directions)
+        if connector is None:
             result[element_id_token(fixture.ref)] = None
             continue
-        point_mm = fixture.connectors[0].position
+        point_mm = connector.position
         result[element_id_token(fixture.ref)] = find_nearest_wall(
             doc, point_mm, walls=walls, max_distance_mm=max_distance_mm)
     return result
