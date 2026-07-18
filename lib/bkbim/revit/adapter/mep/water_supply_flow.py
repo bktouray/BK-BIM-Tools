@@ -3,9 +3,9 @@
 incoming-main and valve routing points, and an atomic
 graph -> pipes -> fittings/connection pass.
 
-The valve is currently a routing break/position, not an automatically placed
-family instance. Automatic valve placement, automatic obstacle avoidance and
-a sizing engine remain deferred.
+The valve point remains the routing origin, and an optional Phase 4 accessory
+pass can now split the valve-height feed pipe and place a selected Pipe
+Accessory valve family inline.
 """
 
 import clr
@@ -15,7 +15,7 @@ clr.AddReference("RevitAPIUI")
 
 from Autodesk.Revit.DB import (
     BuiltInCategory, BuiltInParameter, FailureProcessingResult,
-    FailureSeverity, IFailuresPreprocessor,
+    FailureSeverity, FilteredElementCollector, FamilySymbol, IFailuresPreprocessor,
     Transaction, TransactionStatus)
 from Autodesk.Revit.DB.Plumbing import Pipe
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
@@ -24,7 +24,15 @@ from pyrevit import forms
 from bkbim.app.commands import generate_water_supply_command
 from bkbim.domain.geometry.units import ft_to_mm
 from bkbim.domain.mep.models.connector_info import ConnectorInfo
+from bkbim.domain.mep.routing.water_supply_feed import (
+    corridor_offset_vector as _corridor_offset_vector,
+    feed_points_from_main_to_trunk as _feed_points_from_main_to_trunk,
+    offset_corridor_points as _offset_corridor_points,
+    offset_point_xy as _offset_point_xy,
+    offset_point_z as _offset_point_z,
+)
 from bkbim.revit.adapter.element_naming import type_name
+from bkbim.revit.adapter.mep.accessory_placement_writer import AccessoryPlacementWriter
 from bkbim.revit.adapter.mep.fitting_generation_writer import FittingGenerationWriter
 from bkbim.revit.adapter.mep.fixture_reader import RevitFixtureReader
 from bkbim.revit.adapter.mep.nearby_wall_finder import find_nearest_walls_for_fixtures
@@ -32,11 +40,15 @@ from bkbim.revit.adapter.mep.pipe_geometry_writer import PipeGeometryWriter
 from bkbim.revit.adapter.mep.room_highlight import highlight_room
 from bkbim.revit.adapter.mep.room_reader import RevitRoomReader
 from bkbim.revit.adapter.mep.room_selection_prompt import pick_rooms
+from bkbim.revit.adapter.mep.selection_retry import ask_retry_selection
 from bkbim.revit.adapter.mep.sanitary_drainage_flow import (
     resolve_piping_system_type_id, resolve_pipe_type_id_by_name)
 from bkbim.revit.adapter.mep.wall_confirmation_prompt import confirm_walls, highlight_walls
 from bkbim.revit.adapter.mep.wall_corridor import corridor_points_from_connected_walls
 from bkbim.revit.adapter.stable_representation import element_id_token
+from bkbim.ui.views.water_supply_options import (
+    show_water_supply_fixture_selection,
+    show_water_supply_routing_options)
 
 _TITLE = u"Route Cold Water"
 
@@ -67,8 +79,8 @@ _SOURCE_MODE_CHOICES = (
     _SOURCE_MODE_PIPE,
 )
 _FEED_MODE_WALLS = u"Follow selected walls"
-_MIN_FEED_SEGMENT_MM = 10.0
-_VALVE_BYPASS_HALF_LENGTH_MM = 250.0
+_NO_VALVE_FAMILY = u"No valve family - route pipe only"
+_VALVE_PICK_CANCELLED = object()
 
 
 class _MepRouteFailurePolicy(IFailuresPreprocessor):
@@ -148,42 +160,16 @@ def _connector_is_connected(connector):
         return False
 
 
-def _distance_mm(point_a, point_b):
-    return sum(
-        (point_b[index] - point_a[index]) ** 2
-        for index in range(3)) ** 0.5
+def _coordination_vertical_offset(system_classification, lateral_offset_mm):
+    """Hot Water is coordinated both beside and above Cold Water.
 
-
-def _horizontal_distance_mm(point_a, point_b):
-    return (
-        (point_b[0] - point_a[0]) ** 2 +
-        (point_b[1] - point_a[1]) ** 2) ** 0.5
-
-
-def _offset_corridor_points(corridor_points, offset_mm):
-    if not corridor_points or abs(offset_mm) < 0.001:
-        return corridor_points
-    first = corridor_points[0]
-    second = None
-    for point in corridor_points[1:]:
-        if _horizontal_distance_mm(first, point) > _MIN_FEED_SEGMENT_MM:
-            second = point
-            break
-    if second is None:
-        return corridor_points
-    dx = second[0] - first[0]
-    dy = second[1] - first[1]
-    length = (dx * dx + dy * dy) ** 0.5
-    if length <= 0:
-        return corridor_points
-    normal_x = -dy / length
-    normal_y = dx / length
-    return [
-        (point[0] + normal_x * offset_mm,
-         point[1] + normal_y * offset_mm,
-         point[2])
-        for point in corridor_points
-    ]
+    The lateral sign is only a side choice; vertical separation is always
+    positive so a user can flip sides without accidentally moving Hot Water
+    down into the Cold Water run.
+    """
+    if system_classification != HOT_WATER:
+        return 0.0
+    return abs(lateral_offset_mm)
 
 
 def _pick_parallel_offset(system_classification, standard, title):
@@ -223,11 +209,13 @@ def _ask_number_mm(prompt, default_mm, title=_TITLE, allow_zero=True):
 
 def _pick_plan_point(uidoc, prompt, level_elevation_mm, height_above_level_mm,
                      title=_TITLE):
-    forms.alert(prompt, title=title)
-    try:
-        picked = uidoc.Selection.PickPoint(prompt)
-    except Exception:
-        return None
+    while True:
+        try:
+            picked = uidoc.Selection.PickPoint(prompt)
+            break
+        except Exception:
+            if not ask_retry_selection(title):
+                return None
     return (
         ft_to_mm(picked.X),
         ft_to_mm(picked.Y),
@@ -258,27 +246,27 @@ def _pipe_diameter_mm(pipe):
 
 
 def _pick_source_pipe(uidoc, doc, title=_TITLE):
-    forms.alert(
-        u"Select the existing water main pipe to tie into.",
-        title=title)
-    try:
-        picked_ref = uidoc.Selection.PickObject(
-            ObjectType.Element, _PipeOnlyFilter(),
-            u"{0}: select existing main pipe".format(title))
-    except Exception:
-        return None
+    while True:
+        try:
+            picked_ref = uidoc.Selection.PickObject(
+                ObjectType.Element, _PipeOnlyFilter(),
+                u"{0}: select existing main pipe".format(title))
+            break
+        except Exception:
+            if not ask_retry_selection(title):
+                return None
     pipe = doc.GetElement(picked_ref.ElementId)
     if pipe is None:
         return None
 
-    forms.alert(
-        u"Click the tie-in point on or near the selected main pipe.",
-        title=title)
-    try:
-        picked_point = uidoc.Selection.PickPoint(
-            u"{0}: click tie-in point on selected pipe".format(title))
-    except Exception:
-        return None
+    while True:
+        try:
+            picked_point = uidoc.Selection.PickPoint(
+                u"{0}: click tie-in point on selected pipe".format(title))
+            break
+        except Exception:
+            if not ask_retry_selection(title):
+                return None
 
     source_point = _project_point_to_pipe_mm(pipe, picked_point)
     return {
@@ -288,115 +276,8 @@ def _pick_source_pipe(uidoc, doc, title=_TITLE):
     }
 
 
-def _compact_points(points, min_length_mm=_MIN_FEED_SEGMENT_MM):
-    compacted = []
-    for point in points:
-        if not compacted or _distance_mm(compacted[-1], point) >= min_length_mm:
-            compacted.append(point)
-    return compacted
-
-
-def _trunk_aligned_approach_point(valve_point, trunk_origin_point,
-                                  trunk_next_point=None):
-    valve_x, valve_y, _valve_z = valve_point
-    trunk_x, trunk_y, trunk_z = trunk_origin_point
-    if trunk_next_point is None:
-        return (trunk_x, valve_y, trunk_z)
-
-    dx = abs(trunk_next_point[0] - trunk_x)
-    dy = abs(trunk_next_point[1] - trunk_y)
-    if dx >= dy:
-        return (valve_x, trunk_y, trunk_z)
-    return (trunk_x, valve_y, trunk_z)
-
-
-def _valve_bypass_points(incoming_point, valve_point, trunk_z):
-    """Creates a ceiling/main-to-valve-height bypass around the valve point.
-
-    When both the incoming main and post-valve trunk are above the valve
-    height, routing directly down to the valve point and then directly back
-    up creates two opposing vertical pipes sharing the same endpoint. Revit's
-    fitting solver can reject that stacked 180-degree condition. This shape
-    drops before the valve, runs horizontally through the valve position, and
-    rises after it, leaving a real horizontal pipe segment where the valve
-    family will eventually be placed.
-    """
-    valve_x, valve_y, valve_z = valve_point
-    incoming_z = incoming_point[2]
-    if (incoming_z <= valve_z + _MIN_FEED_SEGMENT_MM or
-            trunk_z <= valve_z + _MIN_FEED_SEGMENT_MM):
-        return None
-
-    delta_x = valve_x - incoming_point[0]
-    delta_y = valve_y - incoming_point[1]
-    use_y_axis = abs(delta_y) >= abs(delta_x)
-    if use_y_axis:
-        sign = 1.0 if delta_y >= 0 else -1.0
-        available = abs(delta_y)
-        half = min(_VALVE_BYPASS_HALF_LENGTH_MM, max(100.0, available / 3.0))
-        pre = (valve_x, valve_y - sign * half, incoming_z)
-        pre_low = (valve_x, valve_y - sign * half, valve_z)
-        post_low = (valve_x, valve_y + sign * half, valve_z)
-        post_high = (valve_x, valve_y + sign * half, trunk_z)
-    else:
-        sign = 1.0 if delta_x >= 0 else -1.0
-        available = abs(delta_x)
-        half = min(_VALVE_BYPASS_HALF_LENGTH_MM, max(100.0, available / 3.0))
-        pre = (valve_x - sign * half, valve_y, incoming_z)
-        pre_low = (valve_x - sign * half, valve_y, valve_z)
-        post_low = (valve_x + sign * half, valve_y, valve_z)
-        post_high = (valve_x + sign * half, valve_y, trunk_z)
-    return pre, pre_low, post_low, post_high
-
-
-def _feed_points_from_main_to_trunk(incoming_point, valve_point, trunk_origin_point,
-                                    trunk_next_point=None):
-    """Upstream route: water main -> valve point -> trunk.
-
-    The valve point is preserved as a route break even though a real valve
-    family is not placed yet. A later accessory pass can replace that plain
-    generated connection with an actual valve component. The final point is
-    the wall-projected trunk origin, not the raw valve click point; Revit
-    fittings need those endpoints coincident.
-    """
-    valve_x, valve_y, _valve_z = valve_point
-    _trunk_x, _trunk_y, trunk_z = trunk_origin_point
-    approach_point = _trunk_aligned_approach_point(
-        valve_point, trunk_origin_point, trunk_next_point)
-    bypass = _valve_bypass_points(incoming_point, valve_point, trunk_z)
-    if bypass is not None:
-        pre, pre_low, post_low, post_high = bypass
-        return _compact_points([
-            incoming_point,
-            (pre[0], incoming_point[1], incoming_point[2]),
-            pre,
-            pre_low,
-            post_low,
-            post_high,
-            (valve_x, valve_y, trunk_z),
-            approach_point,
-            trunk_origin_point,
-        ])
-
-    points = [
-        incoming_point,
-        (valve_x, incoming_point[1], incoming_point[2]),
-        (valve_x, valve_y, incoming_point[2]),
-        valve_point,
-        (valve_x, valve_y, trunk_z),
-        approach_point,
-        trunk_origin_point,
-    ]
-    return _compact_points(points)
-
-
-def _pick_routing_layout(uidoc, level_elevation_mm, standard, title=_TITLE):
-    source_mode = forms.CommandSwitchWindow.show(
-        list(_SOURCE_MODE_CHOICES),
-        message=u"Where is the incoming water main?")
-    if not source_mode:
-        return None
-
+def _pick_routing_layout(uidoc, level_elevation_mm, settings, title=_TITLE):
+    source_mode = settings.source_mode
     source_pipe = None
     source_diameter_mm = None
     if source_mode == _SOURCE_MODE_PIPE:
@@ -408,13 +289,7 @@ def _pick_routing_layout(uidoc, level_elevation_mm, standard, title=_TITLE):
         source_pipe = source_info["pipe"]
         source_diameter_mm = source_info["diameter_mm"]
     else:
-        incoming_height = _ask_number_mm(
-            u"Incoming water main height above this level (mm)",
-            standard.mep_valve_height_mm,
-            title=title,
-            allow_zero=True)
-        if incoming_height is None:
-            return None
+        incoming_height = settings.incoming_height_mm
         incoming_point = _pick_plan_point(
             uidoc,
             u"Click the incoming water-main position in plan.",
@@ -424,13 +299,7 @@ def _pick_routing_layout(uidoc, level_elevation_mm, standard, title=_TITLE):
         if incoming_point is None:
             return None
 
-    valve_height = _ask_number_mm(
-        u"Valve height above this level (mm)",
-        standard.mep_valve_height_mm,
-        title=title,
-        allow_zero=True)
-    if valve_height is None:
-        return None
+    valve_height = settings.valve_height_mm
     valve_point = _pick_plan_point(
         uidoc,
         u"Click the valve position in plan. This is the post-valve routing origin.",
@@ -440,46 +309,16 @@ def _pick_routing_layout(uidoc, level_elevation_mm, standard, title=_TITLE):
     if valve_point is None:
         return None
 
-    mode = forms.CommandSwitchWindow.show(
-        list(_TRUNK_MODE_CHOICES),
-        message=u"Where should the main trunk run?")
-    if not mode:
-        return None
-
+    mode = settings.trunk_mode
     if mode == _TRUNK_MODE_CEILING:
-        ceiling_height = _ask_number_mm(
-            u"Ceiling height above this level (mm)",
-            2700.0,
-            title=title,
-            allow_zero=False)
-        if ceiling_height is None:
-            return None
-        ceiling_offset = _ask_number_mm(
-            u"Offset above that ceiling height (mm)",
-            150.0,
-            title=title,
-            allow_zero=True)
-        if ceiling_offset is None:
-            return None
-        trunk_z = level_elevation_mm + ceiling_height + abs(ceiling_offset)
+        trunk_z = (
+            level_elevation_mm +
+            settings.ceiling_height_mm +
+            abs(settings.ceiling_offset_mm))
     elif mode == _TRUNK_MODE_FLOOR:
-        floor_offset = _ask_number_mm(
-            u"Trunk offset below finish floor level (mm)",
-            70.0,
-            title=title,
-            allow_zero=True)
-        if floor_offset is None:
-            return None
-        trunk_z = level_elevation_mm - abs(floor_offset)
+        trunk_z = level_elevation_mm - abs(settings.floor_offset_mm)
     else:
-        wall_height = _ask_number_mm(
-            u"In-wall trunk elevation above this level (mm)",
-            valve_height,
-            title=title,
-            allow_zero=True)
-        if wall_height is None:
-            return None
-        trunk_z = level_elevation_mm + wall_height
+        trunk_z = level_elevation_mm + settings.wall_trunk_height_mm
 
     return {
         "mode": mode,
@@ -495,13 +334,39 @@ def _pick_routing_layout(uidoc, level_elevation_mm, standard, title=_TITLE):
     }
 
 
+def _valve_options(doc):
+    options = [(_NO_VALVE_FAMILY, None)]
+    for symbol in _pipe_accessory_symbols(doc):
+        label = u"{0}  [id {1}]".format(
+            type_name(symbol), element_id_token(symbol.Id))
+        options.append((label, symbol))
+    return options
+
+
+def _pick_routing_settings(doc, standard, minimum_trunk_diameter_mm,
+                           system_classification, title):
+    default_hot_offset_mm = None
+    if system_classification == HOT_WATER:
+        default_hot_offset_mm = getattr(
+            standard, "mep_hot_cold_spacing_mm", 50.0)
+    return show_water_supply_routing_options(
+        title=title,
+        system_display_name=_system_display_name(system_classification),
+        source_modes=_SOURCE_MODE_CHOICES,
+        trunk_modes=_TRUNK_MODE_CHOICES,
+        valve_options=_valve_options(doc),
+        default_incoming_height_mm=standard.mep_valve_height_mm,
+        default_valve_height_mm=standard.mep_valve_height_mm,
+        default_trunk_diameter_mm=minimum_trunk_diameter_mm,
+        minimum_trunk_diameter_mm=minimum_trunk_diameter_mm,
+        default_hot_offset_mm=default_hot_offset_mm)
+
+
 def _pick_fixtures(fixtures, system_classification):
     display_name = _system_display_name(system_classification)
     by_label = {}
     for fixture in fixtures:
-        label = u"{0} : {1}  [id {2}]".format(
-            fixture.family_name, fixture.type_name,
-            element_id_token(fixture.ref))
+        label = _fixture_label(fixture)
         by_label[label] = fixture
     picked = forms.SelectFromList.show(
         sorted(by_label.keys()),
@@ -510,6 +375,102 @@ def _pick_fixtures(fixtures, system_classification):
     if not picked:
         return None
     return [by_label[label] for label in picked]
+
+
+def _fixture_label(fixture):
+    return u"{0} : {1}  [id {2}]".format(
+        fixture.family_name, fixture.type_name,
+        element_id_token(fixture.ref))
+
+
+def _fixture_limit_list(fixtures, limit=8):
+    labels = [_fixture_label(fixture) for fixture in fixtures[:limit]]
+    if len(fixtures) > limit:
+        labels.append(u"...and {0} more".format(len(fixtures) - limit))
+    return labels
+
+
+def _show_fixture_eligibility_summary(title, display_name, total, eligible,
+                                      missing, ambiguous, connected):
+    if not (missing or ambiguous or connected):
+        return
+    message = (
+        u"Found {0} plumbing fixture(s) in the selected room.\n"
+        u"{1} fixture(s) are eligible for {2} and will be shown next.\n\n"
+        u"Skipped:\n"
+        u"- Missing {2} inlet: {3}\n"
+        u"- More than one {2} inlet: {4}\n"
+        u"- Already connected: {5}".format(
+            total, eligible, display_name,
+            len(missing), len(ambiguous), len(connected)))
+    details = []
+    if missing:
+        details.append(
+            u"Missing {0} inlet:\n- {1}".format(
+                display_name, u"\n- ".join(_fixture_limit_list(missing))))
+    if ambiguous:
+        details.append(
+            u"Ambiguous {0} inlet:\n- {1}".format(
+                display_name, u"\n- ".join(_fixture_limit_list(ambiguous))))
+    if connected:
+        details.append(
+            u"Already connected:\n- {0}".format(
+                u"\n- ".join(_fixture_limit_list(connected))))
+    if details:
+        message += u"\n\n" + u"\n\n".join(details)
+    message += (
+        u"\n\nNote: a fixture can look like a water fixture but still be "
+        u"skipped if its family connector is authored as another Revit system "
+        u"type, such as Sanitary.")
+    forms.alert(message, title=title)
+
+
+def _room_label(room):
+    return u"{0} - {1}".format(room.number, room.name)
+
+
+def _classify_room_fixtures(fixtures, system_classification):
+    eligible = []
+    missing = []
+    ambiguous = []
+    connected = []
+    for fixture in fixtures:
+        matches = _supply_connectors(fixture, system_classification)
+        if not matches:
+            missing.append(fixture)
+        elif len(matches) > 1:
+            ambiguous.append(fixture)
+        elif _connector_is_connected(matches[0]):
+            connected.append(fixture)
+        else:
+            eligible.append(fixture)
+    return eligible, missing, ambiguous, connected
+
+
+def _fixture_selection_entries(rooms, fixtures, system_classification):
+    fixtures_by_room = {}
+    for fixture in fixtures:
+        key = element_id_token(fixture.room_ref) if fixture.room_ref is not None else None
+        fixtures_by_room.setdefault(key, []).append(fixture)
+
+    entries = []
+    for room in rooms:
+        key = element_id_token(room.ref)
+        room_fixtures = fixtures_by_room.get(key, [])
+        eligible, missing, ambiguous, connected = _classify_room_fixtures(
+            room_fixtures, system_classification)
+        entries.append({
+            "label": u"{0}  ({1} eligible / {2} total)".format(
+                _room_label(room), len(eligible), len(room_fixtures)),
+            "room": room,
+            "total": len(room_fixtures),
+            "eligible": eligible,
+            "missing": missing,
+            "ambiguous": ambiguous,
+            "connected": connected,
+            "fixture_label_fn": _fixture_label,
+        })
+    return entries
 
 
 def _pick_trunk_diameter(minimum_mm, source_diameter_mm=None,
@@ -547,11 +508,87 @@ def _pick_trunk_diameter(minimum_mm, source_diameter_mm=None,
     return diameter
 
 
+def _pipe_accessory_symbols(doc):
+    try:
+        symbols = list(
+            FilteredElementCollector(doc)
+            .OfClass(FamilySymbol)
+            .OfCategory(BuiltInCategory.OST_PipeAccessory)
+            .ToElements())
+    except Exception:
+        symbols = []
+    return sorted(symbols, key=lambda symbol: type_name(symbol))
+
+
+def _pick_valve_symbol(doc, system_classification=COLD_WATER, title=_TITLE):
+    display_name = _system_display_name(system_classification)
+    symbols = _pipe_accessory_symbols(doc)
+    if not symbols:
+        forms.alert(
+            u"No Pipe Accessory family types were found in this project.\n\n"
+            u"The route can still be created, but no physical valve family "
+            u"can be inserted until a valve family/type is loaded.",
+            title=title)
+        return None
+
+    labels = [_NO_VALVE_FAMILY]
+    by_label = {_NO_VALVE_FAMILY: None}
+    for symbol in symbols:
+        label = u"{0}  [id {1}]".format(type_name(symbol), element_id_token(symbol.Id))
+        labels.append(label)
+        by_label[label] = symbol
+
+    picked = forms.SelectFromList.show(
+        labels,
+        title=u"{0} valve family/type".format(display_name),
+        multiselect=False)
+    if not picked:
+        return _VALVE_PICK_CANCELLED
+    return by_label.get(picked)
+
+
+def _created_segments(system_classification, geo_value, trunk_diameter_mm):
+    display_name = _system_display_name(system_classification)
+    segments = []
+    for index, entry in enumerate(geo_value.get("feed_entries", [])):
+        start, end, _pipe = entry
+        segments.append({
+            "system": display_name,
+            "kind": u"feed",
+            "label": u"feed segment {0}".format(index + 1),
+            "start": start,
+            "end": end,
+            "diameter_mm": trunk_diameter_mm,
+        })
+    for index, entry in enumerate(geo_value.get("trunk_entries", [])):
+        start, end, _pipe = entry
+        segments.append({
+            "system": display_name,
+            "kind": u"trunk",
+            "label": u"trunk segment {0}".format(index + 1),
+            "start": start,
+            "end": end,
+            "diameter_mm": trunk_diameter_mm,
+        })
+    for index, entry in enumerate(geo_value.get("branch_entries", [])):
+        start, end, _pipe, target_label, diameter_mm = entry
+        segments.append({
+            "system": display_name,
+            "kind": u"branch",
+            "label": u"branch segment {0} to {1}".format(index + 1, target_label),
+            "start": start,
+            "end": end,
+            "diameter_mm": diameter_mm,
+        })
+    return segments
+
+
 def run_water_supply_flow(doc, fixtures, system_classification, corridor_points,
                            trunk_diameter_mm, level_id, pipe_type_name,
                            wall_penetration_mm=80.0, max_branch_length_mm=None,
                            source_connector=None, feed_points=None,
-                           source_pipe=None, source_point=None, title=None):
+                           source_pipe=None, source_point=None,
+                           valve_symbol=None, valve_point=None, title=None):
     """Runs graph, geometry and fittings for one Water Supply system.
 
     Any required pipe, fitting or connector failure rolls back the complete
@@ -596,6 +633,8 @@ def run_water_supply_flow(doc, fixtures, system_classification, corridor_points,
         if not geo_result.success:
             t.RollBack()
             return geo_result, geo_result.message
+        created_segments = _created_segments(
+            system_classification, geo_result.value, trunk_diameter_mm)
 
         fitting_writer = FittingGenerationWriter(doc)
         fit_result = fitting_writer.write(
@@ -609,6 +648,22 @@ def run_water_supply_flow(doc, fixtures, system_classification, corridor_points,
             if fit_result.diagnostics:
                 message += u"\n\nDetails:\n- " + u"\n- ".join(fit_result.diagnostics)
             return fit_result, message
+        valve_placed = False
+        valve_type_name = None
+        if valve_symbol is not None:
+            accessory_result = AccessoryPlacementWriter(doc).place_inline_valve(
+                valve_symbol, valve_point, geo_result.value.get("feed_entries", []))
+            if not accessory_result.success:
+                t.RollBack()
+                message = accessory_result.message
+                if accessory_result.diagnostics:
+                    message += u"\n\nDetails:\n- " + u"\n- ".join(accessory_result.diagnostics)
+                return accessory_result, message
+            valve_placed = True
+            valve_type_name = type_name(valve_symbol)
+        cmd_result.value["created_pipe_segments"] = created_segments
+        cmd_result.value["valve_placed"] = valve_placed
+        cmd_result.value["valve_type_name"] = valve_type_name
     except Exception as e:
         t.RollBack()
         return None, u"Error:\n{0}".format(str(e))
@@ -632,6 +687,9 @@ def run_water_supply_flow(doc, fixtures, system_classification, corridor_points,
     warnings = cmd_result.value.get("warnings", [])
     if warnings:
         message += u"\n\nWarnings:\n- " + u"\n- ".join(warnings)
+    if cmd_result.value.get("valve_placed"):
+        message += u"\n\nValve placed: {0}.".format(
+            cmd_result.value.get("valve_type_name") or u"selected valve")
 
     return cmd_result, message
 
@@ -651,14 +709,15 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
     if not rooms:
         return None, u"No rooms found in this project."
 
-    picked_rooms = pick_rooms(rooms, title=title)
-    if not picked_rooms:
+    all_fixtures = RevitFixtureReader(doc).read_fixtures()
+    selection_entries = _fixture_selection_entries(
+        rooms, all_fixtures, system_classification)
+    selection = show_water_supply_fixture_selection(
+        title, display_name, selection_entries)
+    if selection is None:
         return None, None
-    if len(picked_rooms) != 1:
-        forms.alert(
-            u"This first {0} slice routes one room at a time. "
-            u"Select exactly one room.".format(display_name), title=title)
-        return None, None
+    picked_rooms = [selection.room]
+    selected_fixtures = selection.fixtures
 
     highlight_t = Transaction(doc, u"Highlight selected rooms")
     highlight_t.Start()
@@ -669,42 +728,6 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
     highlight_t.Commit()
 
     try:
-        fixtures = RevitFixtureReader(doc).read_fixtures(rooms=picked_rooms)
-        if not fixtures:
-            forms.alert(
-                u"No plumbing fixtures were found in the selected room.",
-                title=title)
-            return None, None
-
-        eligible = []
-        missing = 0
-        ambiguous = 0
-        connected = 0
-        for fixture in fixtures:
-            matches = _supply_connectors(fixture, system_classification)
-            if not matches:
-                missing += 1
-            elif len(matches) > 1:
-                ambiguous += 1
-            elif _connector_is_connected(matches[0]):
-                connected += 1
-            else:
-                eligible.append(fixture)
-
-        if not eligible:
-            forms.alert(
-                u"No unconnected fixture with exactly one {0} inlet was "
-                u"found in this room.\n\n"
-                u"Missing inlet: {1}\nAmbiguous inlet: {2}\n"
-                u"Already connected: {3}".format(
-                    display_name, missing, ambiguous, connected),
-                title=title)
-            return None, None
-
-        selected_fixtures = _pick_fixtures(eligible, system_classification)
-        if not selected_fixtures:
-            return None, None
-
         # This slice is explicitly one selected room, so the room's level is
         # authoritative. Hosted fixture families often expose InvalidElementId
         # from FamilyInstance.LevelId even though they are inside this room.
@@ -755,19 +778,55 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
                 title=title)
             return None, None
         level_elevation_mm = ft_to_mm(level.Elevation)
-        layout = _pick_routing_layout(uidoc, level_elevation_mm, standard,
-                                      title=title)
-        if layout is None:
-            return None, None
-        origin_mm = (
-            layout["valve_point"][0],
-            layout["valve_point"][1],
-            layout["trunk_z_mm"])
-
-        horizontal_z_mm = layout["trunk_z_mm"]
         selected_connectors = [
             _supply_connectors(fixture, system_classification)[0]
             for fixture in selected_fixtures]
+        default_trunk_diameter_mm = max(
+            connector.diameter_mm for connector in selected_connectors)
+        settings = _pick_routing_settings(
+            doc, standard, default_trunk_diameter_mm,
+            system_classification, title)
+        if settings is None:
+            return None, None
+
+        layout = _pick_routing_layout(uidoc, level_elevation_mm, settings,
+                                      title=title)
+        if layout is None:
+            return None, None
+        trunk_diameter_mm = settings.trunk_diameter_mm
+        if (layout["source_diameter_mm"] is not None and
+                abs(trunk_diameter_mm - layout["source_diameter_mm"]) > 0.5):
+            forms.alert(
+                u"The trunk diameter in the settings window ({0:g} mm) must "
+                u"match the selected source pipe ({1:g} mm). This slice does "
+                u"not place source reducers yet.".format(
+                    float(trunk_diameter_mm),
+                    float(layout["source_diameter_mm"])),
+                title=title)
+            return None, None
+
+        parallel_offset_mm = settings.parallel_offset_mm
+        vertical_offset_mm = _coordination_vertical_offset(
+            system_classification, parallel_offset_mm)
+        route_incoming_point = layout["incoming_point"]
+        route_valve_point = layout["valve_point"]
+        route_trunk_z_mm = layout["trunk_z_mm"] + vertical_offset_mm
+        if vertical_offset_mm:
+            route_valve_point = _offset_point_z(
+                route_valve_point, vertical_offset_mm)
+            # A clicked point source is only a routing origin, so Hot Water can
+            # be coordinated vertically from the first generated feed segment.
+            # A selected existing pipe source must remain on the real pipe for
+            # the connector/split tee pass to work.
+            if layout["source_pipe"] is None:
+                route_incoming_point = _offset_point_z(
+                    route_incoming_point, vertical_offset_mm)
+        origin_mm = (
+            route_valve_point[0],
+            route_valve_point[1],
+            route_trunk_z_mm)
+
+        horizontal_z_mm = route_trunk_z_mm
         target_points = [
             connector.position for connector in selected_connectors]
         try:
@@ -776,25 +835,23 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
         except ValueError as e:
             forms.alert(str(e), title=title)
             return None, None
-        parallel_offset_mm = _pick_parallel_offset(
-            system_classification, standard, title)
-        if parallel_offset_mm is None:
-            return None, None
+        offset_xy = _corridor_offset_vector(
+            corridor_points, parallel_offset_mm)
+        if system_classification == HOT_WATER:
+            route_valve_point = _offset_point_xy(route_valve_point, offset_xy)
+            if layout["source_pipe"] is None:
+                # A clicked source is a routing point, so it should move with
+                # the coordinated Hot Water main. A selected source pipe is a
+                # real model element and must remain anchored at its true
+                # tie-in point.
+                route_incoming_point = _offset_point_xy(
+                    route_incoming_point, offset_xy)
         corridor_points = _offset_corridor_points(
             corridor_points, parallel_offset_mm)
         feed_points = _feed_points_from_main_to_trunk(
-            layout["incoming_point"], layout["valve_point"], corridor_points[0],
+            route_incoming_point, route_valve_point, corridor_points[0],
             trunk_next_point=(corridor_points[1] if len(corridor_points) > 1 else None))
-
-        default_trunk_diameter_mm = max(
-            connector.diameter_mm for connector in selected_connectors)
-        trunk_diameter_mm = _pick_trunk_diameter(
-            default_trunk_diameter_mm,
-            source_diameter_mm=layout["source_diameter_mm"],
-            system_classification=system_classification,
-            title=title)
-        if trunk_diameter_mm is None:
-            return None, None
+        valve_symbol = settings.valve_symbol
 
         result, message = run_water_supply_flow(
             doc, selected_fixtures, system_classification, corridor_points,
@@ -804,13 +861,19 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
             feed_points=feed_points,
             source_pipe=layout["source_pipe"],
             source_point=layout["incoming_point"] if layout["source_pipe"] is not None else None,
+            valve_symbol=valve_symbol,
+            valve_point=route_valve_point,
             title=title)
         if result is None or not result.success:
             return 0, message
 
-        valve_note = (
-            u"Note: the valve is a routing point in this slice; no valve "
-            u"family is placed yet.")
+        if valve_symbol is None:
+            valve_note = (
+                u"Valve: no valve family selected; the valve remains a "
+                u"routing point only.")
+        else:
+            valve_note = u"Valve: placed {0} inline on the valve feed segment.".format(
+                type_name(valve_symbol))
         message = (
             u"{0}\n\nRouting mode: {1}\n"
             u"Feed route: {2}\n"
@@ -819,13 +882,15 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
             u"Valve height: {5:g} mm above level\n"
             u"Trunk elevation: {6:g} mm above level\n"
             u"Parallel offset: {7:g} mm\n"
-            u"Corridor wall(s): {8}\n\n{9}".format(
+            u"Vertical offset: {8:g} mm\n"
+            u"Corridor wall(s): {9}\n\n{10}".format(
                 message, layout["mode"], layout["feed_mode"],
                 layout["source_mode"],
-                float(layout["incoming_height_mm"]),
-                float(layout["valve_height_mm"]),
-                float(layout["trunk_z_mm"] - level_elevation_mm),
+                float(route_incoming_point[2] - level_elevation_mm),
+                float(layout["valve_height_mm"] + vertical_offset_mm),
+                float(route_trunk_z_mm - level_elevation_mm),
                 float(parallel_offset_mm),
+                float(vertical_offset_mm),
                 u", ".join(type_name(wall) for wall in confirmed_walls),
                 valve_note))
         return result.value.get("routed", 0), message

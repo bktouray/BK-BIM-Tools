@@ -233,10 +233,17 @@ class FittingGenerationWriter(object):
                 _logger.warning(
                     u"Cold Water feed-to-trunk connection failed at {0}",
                     routing_graph.origin.position)
+                feed_connector = _connector_near(
+                    feed_pipes[-1], routing_graph.origin.position)
+                trunk_connector = _connector_near(
+                    trunk_pipes[0], routing_graph.origin.position)
+                connector_detail = (
+                    u"feed connector found: {0}, trunk connector found: {1}".format(
+                        bool(feed_connector), bool(trunk_connector)))
                 diagnostics.append(
                     u"Feed-to-trunk connection failed at {0}. The feed endpoint "
-                    u"must coincide with the trunk origin.".format(
-                        routing_graph.origin.position))
+                    u"must coincide with the trunk origin ({1}).".format(
+                        routing_graph.origin.position, connector_detail))
                 failed += 1
 
         # 0c. Join trunk corner breaks that are NOT fixture junctions. A
@@ -262,31 +269,11 @@ class FittingGenerationWriter(object):
                         i + 1, i + 2))
                 failed += 1
 
-        # 1. Join each non-zero branch back to its real fixture connector.
-        # Phase 2 intentionally creates geometry only; this is the first
-        # point where a fixture connector is allowed to be touched.
-        for _junction, branch in routing_graph.junctions:
-            pipes = branch_pipes.get(branch.target_ref, [])
-            if not pipes:
-                continue
-            if not branch.segments:
-                failed += 1
-                continue
-            fixture_point = branch.segments[0].start_point
-            pipe_connector = _connector_near(
-                pipes[0], fixture_point, tolerance_mm=10.1)
-            if self._connect_direct(branch.target_ref, pipe_connector):
-                fixture_connections += 1
-            else:
-                _logger.warning(
-                    u"Fixture connection failed for target at {0}", fixture_point)
-                diagnostics.append(
-                    u"Fixture connection failed for target at {0}.".format(
-                        fixture_point))
-                failed += 1
-
-        # 2. Elbows within each branch's own path (where it turns from
+        # 1. Elbows within each branch's own path (where it turns from
         # horizontal to vertical, if it has both segments as real pipes).
+        # Keep fixture family connectors untouched until every pipe-to-pipe
+        # fitting has been solved. Revit can reject a family connection when
+        # a later elbow/tee causes a connected pipe endpoint to be reoriented.
         for _junction, branch in routing_graph.junctions:
             pipes = branch_pipes.get(branch.target_ref, [])
             for i in range(len(pipes) - 1):
@@ -298,7 +285,7 @@ class FittingGenerationWriter(object):
                             i + 1, i + 2))
                     failed += 1
 
-        # 3. Junction fittings: Tee for every interior junction (trunk
+        # 2. Junction fittings: Tee for every interior junction (trunk
         # continues past it), Elbow/direct-connect for the last one (nothing
         # continues past it - MEP_Routing_Playbook.md Sec 8).
         num_junctions = len(routing_graph.junctions)
@@ -356,6 +343,31 @@ class FittingGenerationWriter(object):
                 diagnostics.append(
                     u"Junction fitting failed at {0}: {1}".format(
                         junction.position, str(e)))
+                failed += 1
+
+        # 3. Join each non-zero branch back to its real fixture connector,
+        # after all pipe-to-pipe elbows/tees are in place. This keeps Revit's
+        # family network stable; the fixture is the terminal consumer of the
+        # finished branch, not an anchor used while the branch is still being
+        # reshaped by fittings.
+        for _junction, branch in routing_graph.junctions:
+            pipes = branch_pipes.get(branch.target_ref, [])
+            if not pipes:
+                continue
+            if not branch.segments:
+                failed += 1
+                continue
+            fixture_point = branch.segments[0].start_point
+            pipe_connector = _connector_near(
+                pipes[0], fixture_point, tolerance_mm=10.1)
+            if self._connect_direct(branch.target_ref, pipe_connector):
+                fixture_connections += 1
+            else:
+                _logger.warning(
+                    u"Fixture connection failed for target at {0}", fixture_point)
+                diagnostics.append(
+                    u"Fixture connection failed for target at {0}.".format(
+                        fixture_point))
                 failed += 1
 
         value = {
@@ -482,4 +494,12 @@ class FittingGenerationWriter(object):
             return u"union" if (conn_a.IsConnected and conn_b.IsConnected) else None
         except Exception as e:
             _logger.warning(u"Pipe-to-pipe fitting failed: {0}", str(e))
-            return None
+        try:
+            if _connectors_compatible(conn_a, conn_b):
+                conn_a.ConnectTo(conn_b)
+                self._doc.Regenerate()
+                if conn_a.IsConnected and conn_b.IsConnected:
+                    return u"connected"
+        except Exception as e:
+            _logger.warning(u"Pipe endpoint direct join failed: {0}", str(e))
+        return None

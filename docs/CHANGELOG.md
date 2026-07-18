@@ -4,6 +4,42 @@ All notable changes to BK BIM Tools are recorded here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer per module and
 per suite (SAD §5 versioning).
 
+## Water Supply closeout guardrails
+
+Added pure regression tests for the incoming-main -> valve -> trunk feed
+geometry used by Water Supply. The tests lock down the ceiling bypass rule:
+drop on the incoming side, run a 200 mm valve-height segment through the
+valve point, rise on the opposite/post-valve side, and approach the trunk
+without overlapping its first segment. The hot/cold corridor offset helper is
+also covered outside Revit.
+
+The combined Route Water Supply pushbutton now runs Hot+Cold generation inside
+one `TransactionGroup` and validates the generated pipe centerlines before
+accepting the grouped operation. Obvious Hot/Cold overlaps, same-elevation
+crossings, vertical riser overlaps, and vertical-horizontal centerline clashes
+rollback both systems and report the conflicting generated pipe labels. The
+separate Cold Water and Hot Water pushbuttons remain unchanged.
+
+Water Supply now includes an optional valve family/type picker. Selecting a
+loaded Pipe Accessory valve runs a Phase 4 inline accessory pass after pipe
+and fitting generation: the valve-height feed pipe is split at the selected
+valve family's connector locations, the middle pipe piece is removed, and the
+remaining pipe ends are connected to the valve. Choosing "No valve family"
+keeps the previous pipe-only routing behavior. This first valve placement
+slice is intentionally scoped to horizontal valve-height feed segments and
+requires manual Revit validation with the office valve families.
+
+Water Supply routing settings are now collected in one branded BK BIM Tools
+window instead of a chain of default pyRevit prompts. Source mode, incoming
+height, valve height, trunk location/elevation options, trunk diameter,
+Hot Water offset, and optional valve family/type are entered together.
+
+Water Supply now has a more complete branded wizard flow. Room selection and
+fixture review happen in one BK BIM Tools window that shows eligible fixtures
+and skipped fixture counts before routing continues. Water Supply completion
+and rollback messages also use a branded result window. Native Revit pickers
+remain only where the workflow requires physical model clicks/selections.
+
 ## Route Cold Water first vertical slice
 
 Narrowed the Water Supply pushbutton to one testable Cold Water workflow:
@@ -127,6 +163,35 @@ valve height, and rises after it. This avoids the previous stacked vertical
 down/up condition at the valve point that Revit could reject as a failed feed
 fitting.
 
+Ceiling valve-bypass refinement: the valve-height horizontal segment is now
+limited to 200 mm total, and after the post-valve riser returns to trunk
+height it turns directly toward the fixture corridor instead of jogging back
+through the valve centerline first. This removes one unnecessary horizontal
+leg/elbow pair in ceiling routes.
+
+Valve alignment refinement: the 200 mm valve-height horizontal segment now
+uses the selected wall corridor's first segment as its axis, so the visible
+valve run is parallel to the wall chosen for the valve/corridor rather than
+being inferred from the incoming main path.
+
+Water Supply selection resilience: Revit cancels active point/object pickers
+when the user switches between plan and 3D views. Water Supply now treats
+that as a resumable interrupted pick at the point, existing-pipe, tie-in and
+manual-wall-selection steps, asking whether to continue from the same step
+instead of silently aborting the whole workflow.
+
+Ceiling bypass stability adjustment: after Revit repeatedly rejected the
+attempted no-extra-turn feed-to-trunk shape, the stable post-rise jog through
+the valve centerline at trunk height was restored. The 200 mm wall-aligned
+valve-height segment is retained, but the final feed tail now uses the older
+Revit-solvable shape again.
+
+Feed-to-trunk fitting fallback: when the generated ceiling feed reaches the
+trunk collinearly, Revit may reject an elbow and may not have a usable union
+family loaded. The fitting pass now falls back to a direct coincident connector
+join before failing, and reports whether the feed/trunk endpoint connectors
+were actually found if Revit still rejects the join.
+
 ## Route Hot Water first reuse slice
 
 Added a separate **Route Hot Water** MEP pushbutton that reuses the proven
@@ -146,6 +211,13 @@ trunk/corridor from the Cold Water wall reference by the office standard
 per-run signed offset so the user can flip sides when needed, and rejects a
 zero/effectively-zero offset to avoid generating Hot Water directly on top of
 Cold Water at the same elevation. Office Standards exposes the default spacing.
+
+Hot/cold clash follow-up from Revit testing: Hot Water now applies the same
+coordination distance vertically as well as laterally. For clicked incoming
+main points, the generated hot feed, valve break, trunk and branches are
+raised by the absolute offset value; for selected existing source pipes, the
+tie-in remains on the real pipe and the generated route separates after that
+connection. Route summaries now report both parallel and vertical offsets.
 
 Added a combined **Route Water Supply** MEP pushbutton while retaining the
 separate **Route Cold Water** and **Route Hot Water** buttons. The combined

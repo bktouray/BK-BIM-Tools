@@ -29,6 +29,7 @@ from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from pyrevit import forms
 
 from bkbim.revit.adapter.element_naming import type_name
+from bkbim.revit.adapter.mep.selection_retry import ask_retry_selection
 from bkbim.ui.views.category_picker import show_category_picker
 
 HIGHLIGHT_COLOR = Color(0, 120, 220)  # blue, matches the reference tool's "wet wall" convention
@@ -85,32 +86,25 @@ def confirm_walls(uidoc, doc, detected_walls, title=u"Confirm walls"):
     if detected_walls:
         wall_list_text = u"\n".join(
             u"  - {0} (id {1})".format(type_name(w), w.Id) for w in detected_walls)
-        forms.alert(
-            u"Detected {0} wall(s), highlighted in blue in the view:\n\n{1}".format(
-                len(detected_walls), wall_list_text),
-            title=title)
-
         choice = show_category_picker(
-            title, u"Use these wall(s)?", [USE_DETECTED, PICK_DIFFERENT])
+            title,
+            u"Detected {0} wall(s), highlighted in blue:\n{1}".format(
+                len(detected_walls), wall_list_text),
+            [USE_DETECTED, PICK_DIFFERENT])
         if choice == USE_DETECTED:
             return detected_walls
         if choice is None:
             return []
 
-    forms.alert(
-        u"Click each wall this pipe should route through (Ctrl+click for "
-        u"more than one; click an already-selected wall again to remove it), "
-        u"then click Finish on the ribbon/status bar. Press Escape to select none.",
-        title=title)
-    try:
-        picked_refs = uidoc.Selection.PickObjects(
-            ObjectType.Element, _WallOnlyFilter(),
-            u"{0}: click wall(s), then Finish".format(title))
-    except Exception:
-        return []
+    while True:
+        try:
+            picked_refs = uidoc.Selection.PickObjects(
+                ObjectType.Element, _WallOnlyFilter(),
+                u"{0}: click wall(s), then Finish. Ctrl-click to add/remove.".format(title))
+            break
+        except Exception:
+            if not ask_retry_selection(title):
+                return []
 
     picked_walls = [doc.GetElement(ref.ElementId) for ref in picked_refs]
-    if picked_walls:
-        names = u"\n".join(u"  - {0}".format(type_name(w)) for w in picked_walls)
-        forms.alert(u"Selected:\n\n{0}".format(names), title=title)
     return picked_walls

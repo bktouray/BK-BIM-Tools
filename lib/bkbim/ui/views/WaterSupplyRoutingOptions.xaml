@@ -1,0 +1,214 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Water Supply Routing"
+    Width="660"
+    SizeToContent="Height"
+    MinWidth="560" MinHeight="520"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="TextBlock" x:Key="SectionTitle">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Base}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="TextElement.Foreground" Value="#111827"/>
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#111827"/>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="TextElement.Foreground" Value="#111827"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock x:Name="HeaderText" Text="Water Supply" FontSize="20" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock Text="Set the routing preferences once. After this, Revit will only ask for the model clicks it needs."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,16"/>
+
+        <Border Grid.Row="2" Style="{StaticResource Card}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="Incoming main and valve" Style="{StaticResource SectionTitle}"/>
+
+                <StackPanel Grid.Row="1" Grid.Column="0">
+                    <Label Content="Incoming main source"/>
+                    <ComboBox x:Name="SourceModeCombo"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="2">
+                    <Label Content="Incoming main height above level (mm)"/>
+                    <TextBox x:Name="IncomingHeightText"/>
+                </StackPanel>
+
+                <Grid Grid.Row="2" Grid.ColumnSpan="3" Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <Label Content="Valve height above level (mm)"/>
+                        <TextBox x:Name="ValveHeightText"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <Label Content="Valve family/type"/>
+                        <ComboBox x:Name="ValveFamilyCombo"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Row="3" Grid.ColumnSpan="3" x:Name="SourceHintText"
+                           Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="Main trunk location" Style="{StaticResource SectionTitle}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <Label Content="Where should the main trunk run?"/>
+                        <ComboBox x:Name="TrunkModeCombo"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <Label Content="Trunk diameter (mm)"/>
+                        <TextBox x:Name="TrunkDiameterText"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="CeilingPanel" Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <Label Content="Ceiling height above level (mm)"/>
+                        <TextBox x:Name="CeilingHeightText"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <Label Content="Offset above ceiling (mm)"/>
+                        <TextBox x:Name="CeilingOffsetText"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="FloorPanel" Margin="0,12,0,0">
+                    <StackPanel>
+                        <Label Content="Offset below finish floor (mm)"/>
+                        <TextBox x:Name="FloorOffsetText" Width="180" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="WallPanel" Margin="0,12,0,0">
+                    <StackPanel>
+                        <Label Content="In-wall trunk elevation above level (mm)"/>
+                        <TextBox x:Name="WallTrunkHeightText" Width="180" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="4" Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="Coordination" Style="{StaticResource SectionTitle}"/>
+                <StackPanel x:Name="HotOffsetPanel">
+                    <Label Content="Hot Water offset from Cold Water / wall corridor (mm)"/>
+                    <TextBox x:Name="HotOffsetText" Width="180" HorizontalAlignment="Left"/>
+                    <TextBlock Text="Use a negative value to flip side. Vertical separation uses the absolute value."
+                               Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                </StackPanel>
+                <TextBlock Text="Cold Water uses the selected wall/corridor reference directly."
+                           Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="5" x:Name="ErrorText" Foreground="#D83B01"
+                   TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Continue" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

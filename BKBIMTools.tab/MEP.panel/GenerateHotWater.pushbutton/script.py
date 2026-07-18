@@ -21,6 +21,7 @@ from bkbim.core.tool_memory import recall, remember
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.element_naming import type_name
 from bkbim.revit.adapter.mep.water_supply_flow import HOT_WATER, run_wizard
+from bkbim.ui.views.water_supply_options import show_water_supply_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -52,7 +53,7 @@ def main():
     routed_count, message = run_wizard(
         uidoc, doc, standard, pipe_type_name, system_classification=HOT_WATER)
     if message:
-        forms.alert(message, title=__title__)
+        show_water_supply_result(__title__, message)
     if routed_count:
         remember(_PIPE_TYPE_KEY, pipe_type_name, doc=doc)
 

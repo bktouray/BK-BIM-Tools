@@ -99,6 +99,7 @@ class PipeGeometryWriter(object):
                     trunk_points[i], trunk_points[i + 1], pipe))
 
         branch_pipes = {}
+        branch_entries = []
         for _junction, branch in routing_graph.junctions:
             pipes_for_branch = []
             for segment in branch.segments:
@@ -110,6 +111,9 @@ class PipeGeometryWriter(object):
                     failed += 1
                 else:
                     pipes_for_branch.append(pipe)
+                    branch_entries.append((
+                        segment.start_point, segment.end_point, pipe,
+                        branch.target_label, segment.diameter_mm))
             branch_pipes[branch.target_ref] = pipes_for_branch
 
         if failed:
@@ -124,6 +128,7 @@ class PipeGeometryWriter(object):
         return Result.ok(value={
             "feed_pipes": feed_pipes, "feed_entries": feed_entries,
             "trunk_pipes": trunk_pipes, "trunk_entries": trunk_entries,
+            "branch_entries": branch_entries,
             "branch_pipes": branch_pipes,
             "failed": failed, "skipped": skipped})
 

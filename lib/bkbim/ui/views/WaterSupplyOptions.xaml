@@ -33,6 +33,25 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,0,20,0"/>
         </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="TextElement.Foreground" Value="#111827"/>
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#111827"/>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="TextElement.Foreground" Value="#111827"/>
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="16,6"/>
             <Setter Property="Margin" Value="8,0,0,0"/>

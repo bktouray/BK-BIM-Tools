@@ -149,19 +149,26 @@ optimize for shortest total pipe length.
   `Direct through ceiling/floor` path is deferred until a real valve family
   placement/accessory pass supplies proper connectors at the valve drop.
 - Hot/cold coordination: Cold Water uses the selected wall/corridor reference
-  directly. Hot Water applies a lateral offset to that corridor using
-  `Standard.mep_hot_cold_spacing_mm` (50 mm office default). A signed per-run
-  override is allowed so negative values can flip the side; zero/effectively
-  zero offsets are rejected because they would generate overlapping hot/cold
-  pipes at the same trunk elevation. This is a practical anti-clash rule, not
-  a full collision engine.
+  directly. Hot Water applies a lateral offset to that corridor and an equal
+  positive vertical offset using `Standard.mep_hot_cold_spacing_mm` (50 mm
+  office default). A signed per-run lateral override is allowed so negative
+  values can flip the side; the vertical separation uses the absolute value.
+  Zero/effectively-zero offsets are rejected because they would generate
+  overlapping hot/cold pipes at the same elevation. This is a practical
+  anti-clash rule, not a full collision engine. As of the Water Supply
+  closeout pass, the combined Hot+Cold pushbutton also compares generated
+  hot/cold pipe centerline segments and rolls back the grouped operation
+  when obvious overlap/crossing/riser clashes are found.
 - Ceiling/main-above-valve feed shape: when the incoming/source elevation and
   post-valve trunk elevation are both above the selected valve height, the
   upstream feed must not drop to the valve point and rise back up on the same
-  vertical line. It drops before the valve, runs horizontally through the
-  valve point at valve height, and rises after the valve. This leaves a real
-  horizontal segment where the valve family will later be inserted and avoids
-  a stacked 180-degree pipe condition.
+  vertical line. It drops before the valve, runs a 200 mm horizontal segment
+  centered on the valve point at valve height, then rises after the valve and
+  turns directly toward the fixture corridor. The valve-piece axis follows the
+  selected wall/corridor, but the incoming main decides the drop side and the
+  post-valve rise is forced to the opposite side. This leaves a real horizontal
+  segment where the valve family will later be inserted and avoids a stacked
+  180-degree pipe condition without adding a redundant wall-side jog.
 - Trunk routing mode controls the corridor Z:
   in-ceiling uses `ceiling height above level + offset above ceiling`;
   through-floor uses `level/FFL - offset below floor`; in-wall uses a direct
@@ -314,6 +321,12 @@ silently ignored. Concretely, so far:
 - A `PipeWriter` failure (an individual pipe or fitting that couldn't be
   created) is counted and reported, never allowed to silently vanish from
   the result.
+- The combined Water Supply pushbutton validates newly generated Hot and Cold
+  pipe centerlines before accepting the grouped operation. It is intentionally
+  limited to obvious same-elevation horizontal overlap/crossing, vertical riser
+  overlap, and vertical-horizontal centerline crossings. A detected clash rolls
+  back both systems and reports the segment labels/approximate point; this is
+  a closeout guardrail, not a general Revit clash engine.
 
 ## 13. Debug Mode Documentation
 
@@ -430,12 +443,12 @@ rollback.
 
 ## 17. Accessory Placement Workflow (Phase 4)
 
-**Spiked and live-verified 2026-07-10 but not wired into the active
-pushbutton** (`revit/adapter/mep/accessory_placement_writer.py`), scoped to
-one isolation valve at the trunk's origin - balancing valves, meters, tags,
-supports, and insulation are still not built. The routing engine does not
-depend on this; this depends on the routing engine (and on Phase 2/3
-geometry already existing).
+Water Supply now exposes an optional valve-family/type picker and wires the
+selected Pipe Accessory into a Phase 4 accessory pass
+(`revit/adapter/mep/accessory_placement_writer.py`). The routing engine does
+not depend on this; this depends on the routing engine (and on Phase 2/3
+geometry already existing). If no valve type is selected, the valve remains a
+routing point only.
 
 Placing a real valve family instance was a genuinely new Revit API surface
 for this codebase (nothing had placed a `FamilyInstance` accessory before -
@@ -449,11 +462,22 @@ valve family (`LFFBVD-PEX-F1960`) already loaded in the project, placed at
 the trunk's origin and connected to the first trunk pipe - worked first
 try, full Phase 2→3→4 pipeline together, rolled back.
 
-Known simplification of that spike: the valve was placed AT the origin
-(where the trunk begins) and only ONE of its two connectors was joined (to
-the trunk). The active picked incoming-main/valve workflow now models the
-upstream feed geometry, so accessory placement needs a fresh integration
-slice before it is reintroduced to the ribbon tool.
+The active integration is narrower and more realistic than the original
+origin-valve spike: it searches the generated upstream feed geometry for a
+horizontal valve-height feed segment through the selected valve point, places
+the selected valve family centered on that point, aligns it with the feed
+segment, splits the pipe at the valve connector locations, deletes the
+middle pipe piece, and connects the remaining pipe ends to the valve. If the
+selected family has fewer than two usable pipe connectors, vertical-only
+connectors, or a connector spacing longer than the available valve segment,
+the full route rolls back and reports the failure.
+
+Current scope: inline valve placement is intended first for the ceiling
+bypass valve segment created by the water-main -> valve -> trunk feed rule.
+Balancing valves, meters, tags, supports, insulation, automatic valve-family
+mapping, and vertical inline valve placement are still not built. Manual
+Revit validation remains required for each office valve family/type because
+connector authoring varies by manufacturer family.
 
 ## 18. Performance Considerations
 
@@ -477,7 +501,10 @@ multi-room or whole-building case actually demands it (§20) — not before.
   raw Revit `Connector` object.
 - Door/window/structural-element handling: validation-only (warn), no
   automatic avoidance or rerouting.
-- Valve placement: excluded from the active pushbutton.
+- Valve placement: optional for Water Supply when the user selects a loaded
+  Pipe Accessory family/type. The active inline placement supports a
+  horizontal valve-height feed segment first; other accessory types and
+  vertical valve placement are deferred.
 - Debug Mode / Developer Mode: not built.
 - Interactive room/fixture/wall/origin picking still requires a manual
   ribbon click-through; MCP validated the exact non-interactive flow function.
@@ -496,13 +523,79 @@ multi-room or whole-building case actually demands it (§20) — not before.
   graph shape (§1, §20) — not built ahead of a real case that needs it.
 - Sizing engines for both Sanitary (a real EN 12056-2 verification pass) and
   Water Supply (a fixture-unit method, once chosen).
-- Reintegrate the already-spiked valve/accessory writer only when a later
-  approved pushbutton slice defines the incoming-main and valve behavior.
+- Expand accessory placement after the inline valve slice is manually
+  validated: office default valve mapping, vertical valve placement, meters,
+  tags, insulation, and supports.
 
 ## 21. Architectural Decision Log
 
 Entries here mirror durable decisions also reflected in `MEP_SAD.md`/ADRs —
 this log is the narrative, dated version; the ADRs are the formal record.
+
+### 2026-07-18 - Water Supply consolidates routing prompts into one branded settings window
+- **Reason:** interactive testing showed the command had become too
+  fragmented: many default pyRevit popups were required before any route was
+  generated, and the mixed visual styles made the tool feel less like one BK
+  BIM Tools workflow.
+- **Alternatives considered:** keep the pyRevit `ask_for_string` /
+  `CommandSwitchWindow` chain, or build a full multi-step room/fixture/wall
+  wizard immediately. The popup chain was too noisy; the full wizard is
+  larger than this closeout slice.
+- **Trade-offs:** numerical/configuration inputs now live in one branded
+  Water Supply Routing Settings window, while true model interactions still
+  use Revit's native pickers because the user must click points, pipes, and
+  walls in the active model.
+- **Future implications:** the next UI polish slice should brand room,
+  fixture and final result dialogs so Water Supply becomes a single coherent
+  BK-style wizard end to end.
+
+### 2026-07-18 - Water Supply room, fixture and result UI becomes branded wizard flow
+- **Reason:** after the settings-window pass, room selection, fixture
+  selection and completion messages still used default pyRevit UI, making the
+  command feel like several unrelated tools stitched together.
+- **Alternatives considered:** build one huge WPF window that stays open
+  while the user clicks Revit geometry. Rejected for now because Revit point,
+  object and wall picks are safer through native pickers and must keep access
+  to the active model view.
+- **Trade-offs:** Water Supply now has a branded wizard flow for data review
+  and configuration, while native Revit pickers remain for physical model
+  clicks/selections. This is not yet a dockable/live wizard, but it removes
+  the largest pyRevit-style UI breaks.
+- **Future implications:** a later UX slice can add progress indicators,
+  preview graphics and a dockable/non-modal interaction model if the native
+  picker steps still feel too interruptive.
+
+### 2026-07-18 - Water Supply adds optional inline valve accessory placement
+- **Reason:** the water-main -> valve -> fixtures workflow now needs the
+  picked valve point to create a real Revit valve when the user chooses a
+  loaded valve family/type, rather than always remaining a routing-only
+  marker.
+- **Alternatives considered:** keep valves fully deferred, or place a valve
+  instance without splitting/connecting the pipe. Deferral no longer matched
+  the requested workflow; unconnected placement would look finished while
+  leaving an invalid MEP network.
+- **Trade-offs:** the first implementation is intentionally limited to a
+  horizontal valve-height feed segment and depends on the selected valve
+  family's connector authoring. Unsupported valve families cause a clean
+  rollback instead of silent partial placement.
+- **Future implications:** once manually validated with office valve
+  families, the same Phase 4 pattern can grow into default valve mappings,
+  vertical inline valves, meters, and other water-supply accessories without
+  changing the routing graph.
+
+### 2026-07-18 - Water Supply closeout adds pure feed tests and grouped Hot/Cold clash validation
+- **Reason:** interactive ceiling-route testing found several regressions in
+  the incoming-main -> valve -> trunk feed geometry and hot/cold coordination.
+  These were too easy to break while tuning Revit fittings by hand.
+- **Alternatives considered:** rely on manual Revit screenshots only, or build
+  a full collision engine. Manual-only testing was too fragile; a full clash
+  engine is beyond the Water Supply closeout scope.
+- **Trade-offs:** the validator checks centerlines and obvious axis-aligned
+  cases only. It does not inspect solids, insulation, hangers, clearance zones,
+  or every possible diagonal/curved future route.
+- **Future implications:** DWV should follow the same pattern: put fragile
+  geometry decisions in pure helpers with regression tests first, then add
+  narrow Revit validation passes where obvious bad models should rollback.
 
 ### 2026-07-10 — Water Supply replaces independent-point routing with trunk-and-branch
 - **Reason:** product owner tried the first Water Supply cut live; every
