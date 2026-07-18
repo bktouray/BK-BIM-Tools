@@ -11,32 +11,42 @@ __author__ = u"Baboucarr Katim Touray"
 __authors__ = [u"Baboucarr Katim Touray"]
 __doc__ = u"""Cuts one detail section per typical footing (grouped by
 Mark - run Auto Mark for Footings first). Reports how many footings share
-each section, and cuts a horizontal detail view 200mm above each typical
-footing's top with the far clip extended past its bottom.
+each section, and cuts a horizontal detail view above each typical footing's
+top with the far clip extended below its bottom.
 """
 
-from pyrevit import revit, DB, forms, script
+from pyrevit import revit, DB, script
 
 import sys as _sys
-for _m in [_n for _n in list(_sys.modules) if _n.startswith("bkbim.automation")]:
+for _m in [_n for _n in list(_sys.modules)
+           if _n.startswith("bkbim.automation")
+           or _n == "bkbim.ui.views.typical_section_options"]:
     del _sys.modules[_m]
 
 from bkbim.automation.common import to_feet
 from bkbim.automation.typical_views import (
     cut_footing_section, cut_typical_views,
-    group_by_mark, pick_section_view_family_type, unmarked_elements,
+    group_by_mark, list_typical_view_family_types, unmarked_elements,
 )
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.typical_section_options import show_typical_section_options
 
 logger = script.get_logger()
 doc = revit.doc
 
 _CATEGORY_LABEL = u"Footing"
-_ABOVE_TOP_MM = 200.0  # fixed, per product owner's spec - not user-adjustable
-_DEFAULT_FAR_CLIP_MARGIN_MM = 100.0
+_DEFAULT_ABOVE_TOP_MM = 150.0
+_DEFAULT_FAR_CLIP_MARGIN_MM = 150.0
 
 MODE_LABEL_GROUP = u"One view per typical section (recommended)"
 MODE_LABEL_INSTANCE = u"One view per individual footing"
+
+
+def _name(el):
+    try:
+        return el.Name
+    except Exception:
+        return DB.Element.Name.__get__(el)
 
 
 def _collect_footings():
@@ -47,40 +57,47 @@ def _collect_footings():
 
 def main():
     if doc is None:
-        forms.alert("No active Revit document.", title=__title__)
+        show_result(__title__, "No active Revit document.")
         return
 
     footings = _collect_footings()
     if not footings:
-        forms.alert("No isolated footings found in the model.", title=__title__)
+        show_result(__title__, "No isolated footings found in the model.")
         return
 
     missing = unmarked_elements(footings)
     if missing:
-        forms.alert(
+        show_result(
+            __title__,
             "{0} of {1} footing(s) have no Mark yet.\n\n"
-            "Run Auto Mark for Footings first, then try again.".format(len(missing), len(footings)),
-            title=__title__)
+            "Run Auto Mark for Footings first, then try again.".format(len(missing), len(footings)))
         return
 
     groups = group_by_mark(footings)
     summary_lines = [u"{0}: {1} footing(s)".format(mark, len(members)) for mark, members in groups]
 
+    view_types = list_typical_view_family_types(doc)
+    if not view_types:
+        show_result(__title__, "No Detail or Section view family type found in this project.")
+        return
+
     options = show_typical_section_options(
         __title__.replace("\n", " "),
         u"{0} typical footing section(s) found across {1} footing(s).".format(len(groups), len(footings)),
         summary_lines, MODE_LABEL_GROUP, MODE_LABEL_INSTANCE,
-        u"Margin below the footing's bottom, far clip (mm)", _DEFAULT_FAR_CLIP_MARGIN_MM)
+        u"Cut height above footing top (mm)", _DEFAULT_ABOVE_TOP_MM,
+        u"Far clip below footing bottom (mm)", _DEFAULT_FAR_CLIP_MARGIN_MM,
+        view_family_types=view_types, view_family_type_name_fn=_name, default_view_family_type=view_types[0])
     if not options:
         return
     mode = options.mode
-    margin_ft = to_feet(options.value_mm, "mm")
-    above_top_ft = to_feet(_ABOVE_TOP_MM, "mm")
+    above_top_ft = to_feet(options.value_mm, "mm")
+    margin_mm = options.secondary_value_mm
+    if margin_mm is None:
+        margin_mm = _DEFAULT_FAR_CLIP_MARGIN_MM
+    margin_ft = to_feet(margin_mm, "mm")
 
-    vft = pick_section_view_family_type(doc)
-    if vft is None:
-        forms.alert("No Section view family type found in this project.", title=__title__)
-        return
+    vft = options.view_family_type or view_types[0]
 
     def cutter(doc, elem, view_name, vft_id=vft.Id, above_top_ft=above_top_ft, margin_ft=margin_ft):
         return cut_footing_section(doc, vft_id, elem, above_top_ft, margin_ft, view_name)
@@ -97,21 +114,21 @@ def main():
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error("Typical Footings failed: {0}".format(str(e)))
-        forms.alert("Typical Footings failed:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, "Typical Footings failed:\n{0}".format(str(e)))
         return
 
     if res.created == 0:
         msg = "No detail views were created."
         if res.errors:
             msg += "\n\n" + "\n".join(res.errors[:5])
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
     extra = "\n{0} skipped.".format(res.skipped) if res.skipped else ""
-    forms.alert(
+    show_result(
+        __title__,
         "Typical Footings Complete.\n\n"
-        "Created {0} detail section view(s).{1}".format(res.created, extra),
-        title=__title__)
+        "Created {0} detail section view(s).{1}".format(res.created, extra))
 
 
 if __name__ == "__main__":

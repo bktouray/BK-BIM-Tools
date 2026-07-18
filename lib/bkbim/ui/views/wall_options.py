@@ -22,6 +22,7 @@ from System.Windows import Visibility
 from pyrevit import forms
 
 from bkbim.ui.tokens import resolve_tokens_path
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.type_mapping_row import build_type_mapping_row
 
 MODE_PARALLEL = u"parallel"
@@ -151,8 +152,10 @@ class WallOptionsWindow(forms.WPFWindow):
                 group_selections[row.group_key] = selection
 
             if needs_base_type and self._base_wall_type is None:
-                forms.alert(u"Choose a base wall type before running - at least "
-                           u"one thickness is set to Auto-generate.", title=u"Wall Options")
+                show_result(
+                    u"Wall Options",
+                    u"Choose a base wall type before running - at least "
+                    u"one thickness is set to Auto-generate.")
                 return
 
             mat_idx = self.MaterialCombo.SelectedIndex

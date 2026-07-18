@@ -16,6 +16,7 @@ from bkbim.boq import rvt, extractors, pybridge
 from bkbim.ui.views.category_picker import show_category_picker
 from bkbim.ui.views.boq_master_export_options import show_master_export_options
 from bkbim.ui.views.boq_result import show_boq_result
+from bkbim.ui.views.result_dialog import show_result
 
 logger = script.get_logger()
 
@@ -88,7 +89,7 @@ def run_export(labels, default_name=None):
     """Export the given category labels. ``labels`` is a list of REGISTRY keys."""
     doc = rvt.get_doc()
     if not doc:
-        forms.alert("No active Revit document.", title="BOQ Export", ok=True)
+        show_result("BOQ Export", "No active Revit document.")
         return
 
     scope = _scope_prompt(labels)
@@ -111,8 +112,7 @@ def run_export(labels, default_name=None):
                 extracts.append(extractors.run(doc, label, scope))
             except Exception as e:
                 logger.error("Failed extracting %s: %s", label, e)
-                forms.alert("Failed extracting {}:\n{}".format(label, e),
-                            title="BOQ Export", ok=True)
+                show_result("BOQ Export", "Failed extracting {}:\n{}".format(label, e))
 
     if not extracts:
         return
@@ -122,8 +122,7 @@ def run_export(labels, default_name=None):
         summary = result.get("summary", [])
     except Exception as e:
         logger.error("Excel write failed: %s", e)
-        forms.alert("Could not write the workbook:\n{}".format(e),
-                    title="BOQ Export", ok=True)
+        show_result("BOQ Export", "Could not write the workbook:\n{}".format(e))
         return
 
     lines = []
@@ -147,7 +146,7 @@ def run_split():
         result = pybridge.run({"action": "split", "path": src, "out_folder": out})
         written = result.get("written", [])
     except Exception as e:
-        forms.alert("Split failed:\n{}".format(e), title="BOQ Export", ok=True)
+        show_result("BOQ Export", "Split failed:\n{}".format(e))
         return
     lines = [os.path.basename(w) for w in written]
     show_boq_result(u"Split Complete", out, lines)

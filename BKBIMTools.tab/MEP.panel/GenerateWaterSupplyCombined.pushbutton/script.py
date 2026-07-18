@@ -12,8 +12,6 @@ actual routing is delegated to the same proven water_supply_flow.run_wizard()
 used by the individual buttons.
 """
 
-from pyrevit import forms
-
 from Autodesk.Revit.DB import BuiltInParameter, FilteredElementCollector, TransactionGroup
 from Autodesk.Revit.DB.Plumbing import Pipe, PipeType
 
@@ -23,6 +21,7 @@ from bkbim.domain.mep.routing.water_supply_clash import detect_hot_cold_clashes
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.element_naming import type_name
 from bkbim.revit.adapter.mep.water_supply_flow import COLD_WATER, HOT_WATER, run_wizard
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.water_supply_options import show_water_supply_options, show_water_supply_result
 
 doc = __revit__.ActiveUIDocument.Document
@@ -35,7 +34,7 @@ _HOT_PIPE_TYPE_KEY = u"mep.hot_water.pipe_type_name"
 def _pipe_type_names():
     pipe_types = list(FilteredElementCollector(doc).OfClass(PipeType).ToElements())
     if not pipe_types:
-        forms.alert(u"No Pipe Types found in this project.", title=__title__)
+        show_result(__title__, u"No Pipe Types found in this project.")
         return []
     return sorted(set(type_name(pt) for pt in pipe_types))
 

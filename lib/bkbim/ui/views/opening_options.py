@@ -16,6 +16,7 @@ import os
 from pyrevit import forms
 
 from bkbim.ui.tokens import resolve_tokens_path
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.type_mapping_row import build_type_mapping_row
 
 _CATEGORY_TEXT = {
@@ -110,8 +111,10 @@ class OpeningOptionsWindow(forms.WPFWindow):
         for row in self._rows:
             kind, value, extra = row.get_selection()
             if kind == u"auto" and value is None:
-                forms.alert(u"Choose a base family for the {0}mm group before "
-                           u"running.".format(row.group_key), title=self.Title)
+                show_result(
+                    self.TitleText.Text,
+                    u"Choose a base family for the {0}mm group before "
+                    u"running.".format(row.group_key))
                 return
             group_selections[row.group_key] = (kind, value, extra)
 

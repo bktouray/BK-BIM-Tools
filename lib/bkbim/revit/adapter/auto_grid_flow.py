@@ -8,7 +8,7 @@ old "extend? -> unit -> value" popup chain. automation/grids.py stays
 exactly as the execution engine - only the UI layer changed.
 """
 
-from pyrevit import DB, forms, script
+from pyrevit import DB, script
 
 from bkbim.automation import cadreader
 from bkbim.automation.common import to_feet
@@ -16,11 +16,12 @@ from bkbim.automation.grids import generate_grids
 from bkbim.core.tool_memory import recall, remember
 from bkbim.revit.adapter.cad_prescan_prompt import pick_cad_import, pick_cad_layer
 from bkbim.ui.views.grid_options import show_grid_options
+from bkbim.ui.views.result_dialog import show_result
 
 
 def run_auto_grid_flow(doc, title):
     if doc is None:
-        forms.alert(u"No active Revit document.", title=title)
+        show_result(title, u"No active Revit document.")
         return
 
     logger = script.get_logger()
@@ -35,7 +36,7 @@ def run_auto_grid_flow(doc, title):
 
     curves = cadreader.curves_on_layer(doc, inst, layer)
     if not curves:
-        forms.alert(u"No curves on layer '{0}'.".format(layer), title=title)
+        show_result(title, u"No curves on layer '{0}'.".format(layer))
         return
 
     default_auto_extend = recall(u"cad_to_revit.grid.auto_extend", default=True, doc=doc)
@@ -63,24 +64,26 @@ def run_auto_grid_flow(doc, title):
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error(u"Grid generation failed: {0}".format(str(e)))
-        forms.alert(u"Grid generation failed:\n{0}".format(str(e)), title=title)
+        show_result(title, u"Grid generation failed:\n{0}".format(str(e)))
         return
 
     if res.created == 0:
         if res.exists and not res.errors:
-            forms.alert(u"All {0} grid line(s) already exist - nothing new "
-                       u"to add.".format(res.exists), title=title)
+            show_result(
+                title,
+                u"All {0} grid line(s) already exist - nothing new "
+                u"to add.".format(res.exists))
             return
         msg = u"No grids were created."
         if res.errors:
             msg += u"\n\n" + u"\n".join(res.errors[:5])
-        forms.alert(msg, title=title)
+        show_result(title, msg)
         return
 
     extra = u"\n{0} already existed (skipped).".format(res.exists) if res.exists else u""
-    forms.alert(
+    show_result(
+        title,
         u"Grid Generation Complete.\n\n"
-        u"Successfully placed {0} Grid Lines.{1}".format(res.created, extra),
-        title=title)
+        u"Successfully placed {0} Grid Lines.{1}".format(res.created, extra))
     output.print_md(u"**AutoGrid** - created {0} grids: {1}".format(
         res.created, u", ".join(res.names)))

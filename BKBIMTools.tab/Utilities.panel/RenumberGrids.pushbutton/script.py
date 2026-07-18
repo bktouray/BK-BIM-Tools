@@ -15,11 +15,12 @@ __doc__ = u"""Renumbers every grid in the model. Vertical grids get letters
 """
 
 from Autodesk.Revit.DB import Transaction
-from pyrevit import forms
 
 from bkbim.app.commands import renumber_grids_command
 from bkbim.revit.adapter.grid_name_writer import RevitGridRenumberWriter
 from bkbim.revit.adapter.grid_position_reader import list_all_grids
+from bkbim.ui.views.confirmation_dialog import show_confirmation
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 
@@ -27,14 +28,14 @@ doc = __revit__.ActiveUIDocument.Document
 def main():
     grids = list_all_grids(doc)
     if not grids:
-        forms.alert(u"No grids found in this project.", title=__title__)
+        show_result(__title__, u"No grids found in this project.")
         return
 
-    proceed = forms.alert(
+    proceed = show_confirmation(
+        __title__,
         u"Renumber all {0} grid(s) in the model?\n\n"
         u"Vertical grids -> letters, left to right (A, B, C...)\n"
-        u"Horizontal grids -> numbers, top to bottom (1, 2, 3...)".format(len(grids)),
-        title=__title__, yes=True, no=True)
+        u"Horizontal grids -> numbers, top to bottom (1, 2, 3...)".format(len(grids)))
     if not proceed:
         return
 
@@ -46,14 +47,14 @@ def main():
         result = renumber_grids_command.run(grids, writer)
     except Exception as e:
         t.RollBack()
-        forms.alert(u"Error:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, u"Error:\n{0}".format(str(e)))
         return
 
     if result.success:
         t.Commit()
     else:
         t.RollBack()
-    forms.alert(result.message, title=__title__)
+    show_result(__title__, result.message)
 
 
 if __name__ == "__main__":

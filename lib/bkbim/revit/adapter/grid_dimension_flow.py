@@ -31,7 +31,6 @@ import clr
 clr.AddReference("RevitAPI")
 
 from Autodesk.Revit.DB import BuiltInCategory, FilteredElementCollector, Grid, Transaction
-from pyrevit import forms
 
 from bkbim.app.commands import auto_grid_dimension_command
 from bkbim.core.tool_memory import recall, remember
@@ -47,6 +46,7 @@ from bkbim.revit.adapter.stable_representation import element_id_token
 from bkbim.revit.adapter.view_selection_prompt import pick_target_views
 from bkbim.ui.views.grid_dimension_options import show_grid_dimension_options
 from bkbim.ui.views.options_memory import to_remembered
+from bkbim.ui.views.result_dialog import show_result
 
 _TRANSACTION_LABEL = u"Auto Grid Dimension"
 _OFFSET_KEY = u"grid_dimension.offset_mm"
@@ -76,7 +76,7 @@ def run_grid_dimension_flow(doc, view, standard, title, target_views=None):
     target_views = target_views or pick_target_views(doc, view, title)
 
     if not any(_detected_elements(doc, v) for v in target_views):
-        forms.alert(u"No grids, walls, or columns found in the selected view(s).", title=title)
+        show_result(title, u"No grids, walls, or columns found in the selected view(s).")
         return
 
     # Tool Memory (PROJECT layer - a chosen offset/gap is a project habit):

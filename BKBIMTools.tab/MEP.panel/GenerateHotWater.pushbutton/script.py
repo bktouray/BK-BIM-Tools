@@ -12,8 +12,6 @@ Creates the feed, wall-derived trunk, fixture branches and fittings.
 Any required pipe, fitting or connector failure rolls back the whole route.
 """
 
-from pyrevit import forms
-
 from Autodesk.Revit.DB import FilteredElementCollector
 from Autodesk.Revit.DB.Plumbing import PipeType
 
@@ -21,6 +19,8 @@ from bkbim.core.tool_memory import recall, remember
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.element_naming import type_name
 from bkbim.revit.adapter.mep.water_supply_flow import HOT_WATER, run_wizard
+from bkbim.ui.views.list_picker import show_list_picker
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.water_supply_options import show_water_supply_result
 
 doc = __revit__.ActiveUIDocument.Document
@@ -32,7 +32,7 @@ _PIPE_TYPE_KEY = u"mep.hot_water.pipe_type_name"
 def _pick_pipe_type():
     pipe_types = list(FilteredElementCollector(doc).OfClass(PipeType).ToElements())
     if not pipe_types:
-        forms.alert(u"No Pipe Types found in this project.", title=__title__)
+        show_result(__title__, u"No Pipe Types found in this project.")
         return None
     names = sorted(set(type_name(pt) for pt in pipe_types))
 
@@ -40,8 +40,9 @@ def _pick_pipe_type():
     if remembered in names:
         names = [remembered] + [n for n in names if n != remembered]
 
-    return forms.SelectFromList.show(
-        names, title=u"Pick the pipe type for Hot Water", multiselect=False)
+    return show_list_picker(
+        __title__, u"Pick the pipe type for Hot Water.", names,
+        default_label=remembered if remembered in names else None)
 
 
 def main():

@@ -15,17 +15,20 @@ each section, and cuts a horizontal detail view at each typical column's
 mid-height with a configurable far clip offset.
 """
 
-from pyrevit import revit, DB, forms, script
+from pyrevit import revit, DB, script
 
 import sys as _sys
-for _m in [_n for _n in list(_sys.modules) if _n.startswith("bkbim.automation")]:
+for _m in [_n for _n in list(_sys.modules)
+           if _n.startswith("bkbim.automation")
+           or _n == "bkbim.ui.views.typical_section_options"]:
     del _sys.modules[_m]
 
 from bkbim.automation.common import to_feet
 from bkbim.automation.typical_views import (
     cut_column_section, cut_typical_views,
-    group_by_mark, pick_section_view_family_type, unmarked_elements,
+    group_by_mark, list_typical_view_family_types, unmarked_elements,
 )
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.typical_section_options import show_typical_section_options
 
 logger = script.get_logger()
@@ -38,6 +41,13 @@ MODE_LABEL_GROUP = u"One view per typical section (recommended)"
 MODE_LABEL_INSTANCE = u"One view per individual column"
 
 
+def _name(el):
+    try:
+        return el.Name
+    except Exception:
+        return DB.Element.Name.__get__(el)
+
+
 def _collect_columns():
     elems = []
     for bic in (DB.BuiltInCategory.OST_StructuralColumns, DB.BuiltInCategory.OST_Columns):
@@ -48,39 +58,41 @@ def _collect_columns():
 
 def main():
     if doc is None:
-        forms.alert("No active Revit document.", title=__title__)
+        show_result(__title__, "No active Revit document.")
         return
 
     columns = _collect_columns()
     if not columns:
-        forms.alert("No columns found in the model.", title=__title__)
+        show_result(__title__, "No columns found in the model.")
         return
 
     missing = unmarked_elements(columns)
     if missing:
-        forms.alert(
+        show_result(
+            __title__,
             "{0} of {1} column(s) have no Mark yet.\n\n"
-            "Run Auto Mark for Columns first, then try again.".format(len(missing), len(columns)),
-            title=__title__)
+            "Run Auto Mark for Columns first, then try again.".format(len(missing), len(columns)))
         return
 
     groups = group_by_mark(columns)
     summary_lines = [u"{0}: {1} column(s)".format(mark, len(members)) for mark, members in groups]
 
+    view_types = list_typical_view_family_types(doc)
+    if not view_types:
+        show_result(__title__, "No Detail or Section view family type found in this project.")
+        return
+
     options = show_typical_section_options(
         __title__.replace("\n", " "),
         u"{0} typical column section(s) found across {1} column(s).".format(len(groups), len(columns)),
         summary_lines, MODE_LABEL_GROUP, MODE_LABEL_INSTANCE,
-        u"Far clip offset below mid-height (mm)", _DEFAULT_FAR_CLIP_MM)
+        u"Far clip offset below mid-height (mm)", _DEFAULT_FAR_CLIP_MM,
+        view_family_types=view_types, view_family_type_name_fn=_name, default_view_family_type=view_types[0])
     if not options:
         return
     mode = options.mode
     far_clip_ft = to_feet(options.value_mm, "mm")
-
-    vft = pick_section_view_family_type(doc)
-    if vft is None:
-        forms.alert("No Section view family type found in this project.", title=__title__)
-        return
+    vft = options.view_family_type or view_types[0]
 
     def cutter(doc, elem, view_name, vft_id=vft.Id, far_clip_ft=far_clip_ft):
         return cut_column_section(doc, vft_id, elem, far_clip_ft, view_name)
@@ -97,21 +109,21 @@ def main():
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error("Typical Columns failed: {0}".format(str(e)))
-        forms.alert("Typical Columns failed:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, "Typical Columns failed:\n{0}".format(str(e)))
         return
 
     if res.created == 0:
         msg = "No detail views were created."
         if res.errors:
             msg += "\n\n" + "\n".join(res.errors[:5])
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
     extra = "\n{0} skipped.".format(res.skipped) if res.skipped else ""
-    forms.alert(
+    show_result(
+        __title__,
         "Typical Columns Complete.\n\n"
-        "Created {0} detail section view(s).{1}".format(res.created, extra),
-        title=__title__)
+        "Created {0} detail section view(s).{1}".format(res.created, extra))
 
 
 if __name__ == "__main__":

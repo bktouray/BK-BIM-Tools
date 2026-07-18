@@ -18,6 +18,7 @@ import os
 from pyrevit import forms
 
 from bkbim.ui.tokens import resolve_tokens_path
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.type_mapping_row import build_type_mapping_row
 
 _LEAVE_DEFAULT = u"<Leave family default>"
@@ -111,8 +112,10 @@ class ColumnOptionsWindow(forms.WPFWindow):
             group_selections[row.group_key] = selection
 
         if needs_base_family and self._base_symbol is None:
-            forms.alert(u"Choose a base family before running - at least one "
-                       u"size is set to Auto-generate.", title=u"Column Options")
+            show_result(
+                u"Column Options",
+                u"Choose a base family before running - at least one "
+                u"size is set to Auto-generate.")
             return
 
         start_idx = self.StartLevelCombo.SelectedIndex

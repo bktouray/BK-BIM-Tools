@@ -14,7 +14,7 @@ Scan a level automatically or pick footings manually, set the blinding
 depth and side offset, choose a footing family and material, and run.
 """
 
-from pyrevit import revit, DB, forms, script
+from pyrevit import revit, DB, script
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 
 # Dev reload: always pick up the latest bkbim.automation lib code on each click.
@@ -30,6 +30,7 @@ from bkbim.automation.blinding import (
 )
 from bkbim.ui.views.element_scope_options import show_element_scope_options, MODE_AUTO
 from bkbim.ui.views.pcc_blinding_options import show_pcc_blinding_options
+from bkbim.ui.views.result_dialog import show_result
 
 logger = script.get_logger()
 output = script.get_output()
@@ -78,14 +79,14 @@ def _pick_footings_manually():
 
 def main():
     if doc is None:
-        forms.alert("No active Revit document.", title=__title__)
+        show_result(__title__, "No active Revit document.")
         return
 
     levels = sorted(
         DB.FilteredElementCollector(doc).OfClass(DB.Level).ToElements(),
         key=lambda lv: lv.Elevation)
     if not levels:
-        forms.alert("No levels in the model.", title=__title__)
+        show_result(__title__, "No levels in the model.")
         return
 
     scope = show_element_scope_options(
@@ -102,7 +103,9 @@ def main():
     if scope.mode == MODE_AUTO:
         footings = _collect_footings_on_level(scope.level)
         if not footings:
-            forms.alert("No isolated footings found on level '{0}'.".format(_name(scope.level)), title=__title__)
+            show_result(
+                __title__,
+                "No isolated footings found on level '{0}'.".format(_name(scope.level)))
             return
     else:
         footings = _pick_footings_manually()
@@ -129,7 +132,7 @@ def main():
     groups = group_footings_by_blinding_size(footings, offset_ft, snap=_SNAP)
     matched_count = sum(len(fs) for _key, fs in groups)
     if matched_count == 0:
-        forms.alert("None of the selected footings have a usable footprint.", title=__title__)
+        show_result(__title__, "None of the selected footings have a usable footprint.")
         return
 
     skipped_scan = len(footings) - matched_count
@@ -164,21 +167,21 @@ def main():
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error("PCC Blinding failed: {0}".format(str(e)))
-        forms.alert("PCC Blinding failed:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, "PCC Blinding failed:\n{0}".format(str(e)))
         return
 
     if res.placed == 0:
         msg = "No blinding pads were placed."
         if res.errors:
             msg += "\n\n" + "\n".join(res.errors[:5])
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
     extra = "\n{0} skipped (degenerate footprint or missing level).".format(res.skipped) if res.skipped else ""
-    forms.alert(
+    show_result(
+        __title__,
         "PCC Blinding Complete.\n\n"
-        "Successfully placed {0} blinding pad(s).{1}".format(res.placed, extra),
-        title=__title__)
+        "Successfully placed {0} blinding pad(s).{1}".format(res.placed, extra))
     if res.errors:
         output.print_md("**Notes:** " + "; ".join(res.errors[:5]))
 

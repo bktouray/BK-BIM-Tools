@@ -27,7 +27,9 @@ from bkbim.automation.mark_colors import (
     generate_mark_colors, list_line_patterns, marks_with_counts, unmarked_count,
 )
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.confirmation_dialog import show_confirmation
 from bkbim.ui.views.mark_color_options import TARGET_TEMPLATE, show_mark_color_options
+from bkbim.ui.views.result_dialog import show_result
 
 logger = script.get_logger()
 doc = revit.doc
@@ -63,7 +65,7 @@ def _eligible_views():
 
 def main():
     if doc is None:
-        forms.alert("No active Revit document.", title=__title__)
+        show_result(__title__, "No active Revit document.")
         return
 
     category = show_category_picker(
@@ -75,29 +77,31 @@ def main():
 
     elements = collect_elements(doc, category)
     if not elements:
-        forms.alert("No {0}s found in the model.".format(category.lower()), title=__title__)
+        show_result(__title__, "No {0}s found in the model.".format(category.lower()))
         return
 
     mark_counts = marks_with_counts(elements)
     if not mark_counts:
-        forms.alert(
+        show_result(
+            __title__,
             "No {0}s have a Mark yet.\n\nRun Auto Mark for {0}s first, then try again.".format(category),
-            title=__title__)
+        )
         return
 
     missing = unmarked_count(elements)
     if missing:
-        proceed = forms.alert(
+        proceed = show_confirmation(
+            __title__,
             "{0} of {1} {2}(s) have no Mark and will be left uncolored.\n\n"
             "Continue anyway?".format(missing, len(elements), category.lower()),
-            title=__title__, yes=True, no=True)
+            yes_text=u"Continue", no_text=u"Cancel")
         if not proceed:
             return
 
     colors = generate_mark_colors([m for m, _c in mark_counts])
     real_views, templates = _eligible_views()
     if not real_views and not templates:
-        forms.alert("No views or view templates in this project support graphic overrides.", title=__title__)
+        show_result(__title__, "No views or view templates in this project support graphic overrides.")
         return
 
     line_pattern_choices = list_line_patterns(doc)
@@ -112,12 +116,12 @@ def main():
 
     if options.target_mode == TARGET_TEMPLATE:
         if options.selected_template is None:
-            forms.alert("No view template selected.", title=__title__)
+            show_result(__title__, "No view template selected.")
             return
         targets = [options.selected_template]
     else:
         if not options.selected_views:
-            forms.alert("No view(s) selected.", title=__title__)
+            show_result(__title__, "No view(s) selected.")
             return
         targets = options.selected_views
 
@@ -136,21 +140,21 @@ def main():
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error("Mark Colors failed: {0}".format(str(e)))
-        forms.alert("Mark Colors failed:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, "Mark Colors failed:\n{0}".format(str(e)))
         return
 
     if res.views_applied == 0:
         msg = "No views were updated."
         if res.errors:
             msg += "\n\n" + "\n".join(res.errors[:5])
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
-    forms.alert(
+    show_result(
+        __title__,
         "Mark Colors Complete.\n\n"
         "{0} filter(s) created, {1} updated, applied to {2} view(s)/template.".format(
-            res.filters_created, res.filters_updated, res.views_applied),
-        title=__title__)
+            res.filters_created, res.filters_updated, res.views_applied))
     if res.errors:
         script.get_output().print_md("**Notes:** " + "; ".join(res.errors[:5]))
 

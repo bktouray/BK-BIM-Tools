@@ -27,7 +27,7 @@ from bkbim.revit.adapter.tag_writer import RevitTagWriter
 from bkbim.revit.adapter.view_selection_prompt import pick_target_views
 from bkbim.ui.views.auto_tag_options import show_auto_tag_options
 from bkbim.ui.views.category_picker import show_category_picker
-from pyrevit import forms
+from bkbim.ui.views.result_dialog import show_result
 
 _TRANSACTION_LABEL = u"Auto Tag"
 
@@ -50,7 +50,9 @@ def run_auto_tag_flow(doc, view, category, title, target_views=None):
 
     tag_types = list_tag_types(doc, category)
     if not tag_types:
-        forms.alert(u"No {0} tag family is loaded in this project.".format(category.lower()), title=title)
+        show_result(
+            title,
+            u"No {0} tag family is loaded in this project.".format(category.lower()))
         return
 
     options = show_auto_tag_options(tag_types, type_name)

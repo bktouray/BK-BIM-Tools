@@ -22,6 +22,9 @@ from bkbim.automation.walls import (
 from bkbim.core.tool_memory import recall, remember
 from bkbim.revit.adapter.cad_prescan_prompt import list_levels, list_materials, pick_cad_import, pick_cad_layer
 from bkbim.revit.adapter.element_naming import type_name
+from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.list_picker import show_list_picker
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.wall_options import MODE_CENTRELINE, MODE_PARALLEL, show_wall_options
 
 _SNAP = 5.0
@@ -29,8 +32,10 @@ _SNAP = 5.0
 
 def _make_base_wall_type_picker(type_names, types_by_name, title):
     def _pick():
-        choice = forms.SelectFromList.show(
-            type_names, title=u"{0}: base type to duplicate for auto-generated walls".format(title))
+        choice = show_list_picker(
+            title,
+            u"Choose the base type to duplicate for auto-generated walls.",
+            type_names)
         if not choice:
             return None, None
         return types_by_name[choice], choice
@@ -39,7 +44,7 @@ def _make_base_wall_type_picker(type_names, types_by_name, title):
 
 def run_auto_wall_flow(doc, title):
     if doc is None:
-        forms.alert(u"No active Revit document.", title=title)
+        show_result(title, u"No active Revit document.")
         return
 
     logger = script.get_logger()
@@ -54,14 +59,16 @@ def run_auto_wall_flow(doc, title):
 
     types_by_name = basic_wall_types(doc)
     if not types_by_name:
-        forms.alert(u"No basic wall types in the model.", title=title)
+        show_result(title, u"No basic wall types in the model.")
         return
     type_names = sorted(types_by_name.keys())
     curves = cadreader.curves_on_layer(doc, inst, layer)
 
-    mode_choice = forms.CommandSwitchWindow.show(
+    mode_choice = show_category_picker(
+        title,
+        u"How are the walls drawn in the CAD?",
         [u"Two parallel lines (double-line)", u"Centreline"],
-        message=u"How are the walls drawn in the CAD?")
+    )
     if not mode_choice:
         return
     mode = MODE_PARALLEL if mode_choice.startswith(u"Two parallel") else MODE_CENTRELINE
@@ -79,19 +86,21 @@ def run_auto_wall_flow(doc, title):
 
         runs = extract_wall_runs(curves, max_thickness_ft=max_thk_ft)
         if not runs:
-            forms.alert(u"No double-line walls found on layer '{0}'.\n\n"
-                       u"Walls must be drawn as two parallel lines.".format(layer), title=title)
+            show_result(
+                title,
+                u"No double-line walls found on layer '{0}'.\n\n"
+                u"Walls must be drawn as two parallel lines.".format(layer))
             return
         groups = group_by_thickness(runs, snap=_SNAP)
     else:
         runs = extract_centerlines(curves)
         if not runs:
-            forms.alert(u"No lines found on layer '{0}'.".format(layer), title=title)
+            show_result(title, u"No lines found on layer '{0}'.".format(layer))
             return
 
     levels = list_levels(doc)
     if not levels:
-        forms.alert(u"No levels in the model.", title=title)
+        show_result(title, u"No levels in the model.")
         return
     materials = list_materials(doc)
 
@@ -156,24 +165,26 @@ def run_auto_wall_flow(doc, title):
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error(u"Wall generation failed: {0}".format(str(e)))
-        forms.alert(u"Wall generation failed:\n{0}".format(str(e)), title=title)
+        show_result(title, u"Wall generation failed:\n{0}".format(str(e)))
         return
 
     if res.placed == 0:
         if res.skipped and not res.errors:
-            forms.alert(u"All {0} wall(s) already exist - nothing new to "
-                       u"add.".format(res.skipped), title=title)
+            show_result(
+                title,
+                u"All {0} wall(s) already exist - nothing new to "
+                u"add.".format(res.skipped))
             return
         msg = u"No walls were created."
         if res.errors:
             msg += u"\n\n" + u"\n".join(res.errors[:5])
-        forms.alert(msg, title=title)
+        show_result(title, msg)
         return
 
     extra = u"\n{0} already existed (skipped).".format(res.skipped) if res.skipped else u""
-    forms.alert(
+    show_result(
+        title,
         u"Wall Generation Complete.\n\n"
-        u"Successfully created {0} Walls.{1}".format(res.placed, extra),
-        title=title)
+        u"Successfully created {0} Walls.{1}".format(res.placed, extra))
     if res.errors:
         output.print_md(u"**Notes:** " + u"; ".join(res.errors[:5]))

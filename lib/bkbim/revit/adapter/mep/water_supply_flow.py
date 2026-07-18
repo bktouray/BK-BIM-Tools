@@ -46,6 +46,8 @@ from bkbim.revit.adapter.mep.sanitary_drainage_flow import (
 from bkbim.revit.adapter.mep.wall_confirmation_prompt import confirm_walls, highlight_walls
 from bkbim.revit.adapter.mep.wall_corridor import corridor_points_from_connected_walls
 from bkbim.revit.adapter.stable_representation import element_id_token
+from bkbim.ui.views.list_picker import show_multi_list_picker, show_list_picker
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.water_supply_options import (
     show_water_supply_fixture_selection,
     show_water_supply_routing_options)
@@ -181,10 +183,10 @@ def _pick_parallel_offset(system_classification, standard, title):
         title=title,
         allow_zero=True)
     if offset is not None and abs(offset) < 1.0:
-        forms.alert(
+        show_result(
+            title,
             u"Hot Water offset must not be 0 mm, otherwise hot and cold "
-            u"pipes can overlap at the same elevation.",
-            title=title)
+            u"pipes can overlap at the same elevation.")
         return None
     return offset
 
@@ -199,10 +201,10 @@ def _ask_number_mm(prompt, default_mm, title=_TITLE, allow_zero=True):
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        forms.alert(u"Enter a valid number in millimetres.", title=title)
+        show_result(title, u"Enter a valid number in millimetres.")
         return None
     if not allow_zero and value <= 0:
-        forms.alert(u"Enter a value greater than 0 mm.", title=title)
+        show_result(title, u"Enter a value greater than 0 mm.")
         return None
     return value
 
@@ -368,10 +370,10 @@ def _pick_fixtures(fixtures, system_classification):
     for fixture in fixtures:
         label = _fixture_label(fixture)
         by_label[label] = fixture
-    picked = forms.SelectFromList.show(
-        sorted(by_label.keys()),
-        title=u"Pick the fixtures to connect to {0}".format(display_name),
-        multiselect=True)
+    picked = show_multi_list_picker(
+        _route_title(system_classification),
+        u"Pick the fixtures to connect to {0}.".format(display_name),
+        sorted(by_label.keys()))
     if not picked:
         return None
     return [by_label[label] for label in picked]
@@ -422,7 +424,7 @@ def _show_fixture_eligibility_summary(title, display_name, total, eligible,
         u"\n\nNote: a fixture can look like a water fixture but still be "
         u"skipped if its family connector is authored as another Revit system "
         u"type, such as Sanitary.")
-    forms.alert(message, title=title)
+    show_result(title, message)
 
 
 def _room_label(room):
@@ -488,22 +490,22 @@ def _pick_trunk_diameter(minimum_mm, source_diameter_mm=None,
     except (TypeError, ValueError):
         diameter = 0.0
     if diameter <= 0:
-        forms.alert(
-            u"Enter a trunk diameter greater than 0 mm.", title=title)
+        show_result(title, u"Enter a trunk diameter greater than 0 mm.")
         return None
     if diameter < minimum_mm:
-        forms.alert(
+        show_result(
+            title,
             u"The trunk must be at least {0:g} mm, the largest selected "
             u"fixture connector. Smaller trunks would require reducers, "
-            u"which this slice does not support.".format(float(minimum_mm)),
-            title=title)
+            u"which this slice does not support.".format(float(minimum_mm)))
         return None
     if (source_diameter_mm is not None and
             abs(diameter - source_diameter_mm) > 0.5):
-        forms.alert(
+        show_result(
+            title,
             u"The trunk must match the selected source outlet ({0:g} mm). "
             u"This slice does not place source reducers.".format(
-                float(source_diameter_mm)), title=title)
+                float(source_diameter_mm)))
         return None
     return diameter
 
@@ -524,11 +526,11 @@ def _pick_valve_symbol(doc, system_classification=COLD_WATER, title=_TITLE):
     display_name = _system_display_name(system_classification)
     symbols = _pipe_accessory_symbols(doc)
     if not symbols:
-        forms.alert(
+        show_result(
+            title,
             u"No Pipe Accessory family types were found in this project.\n\n"
             u"The route can still be created, but no physical valve family "
-            u"can be inserted until a valve family/type is loaded.",
-            title=title)
+            u"can be inserted until a valve family/type is loaded.")
         return None
 
     labels = [_NO_VALVE_FAMILY]
@@ -538,10 +540,11 @@ def _pick_valve_symbol(doc, system_classification=COLD_WATER, title=_TITLE):
         labels.append(label)
         by_label[label] = symbol
 
-    picked = forms.SelectFromList.show(
+    picked = show_list_picker(
+        title,
+        u"{0} valve family/type.".format(display_name),
         labels,
-        title=u"{0} valve family/type".format(display_name),
-        multiselect=False)
+        default_label=_NO_VALVE_FAMILY)
     if not picked:
         return _VALVE_PICK_CANCELLED
     return by_label.get(picked)
@@ -734,9 +737,7 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
         level_id = picked_rooms[0].level_ref
         level = doc.GetElement(level_id)
         if level is None:
-            forms.alert(
-                u"The selected fixtures do not have a usable Revit level.",
-                title=title)
+            show_result(title, u"The selected fixtures do not have a usable Revit level.")
             return None, None
 
         wall_map = find_nearest_walls_for_fixtures(
@@ -772,10 +773,10 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
             clear_t.Commit()
 
         if not confirmed_walls:
-            forms.alert(
+            show_result(
+                title,
                 u"No wall was confirmed, so no {0} route was created.".format(
-                    display_name),
-                title=title)
+                    display_name))
             return None, None
         level_elevation_mm = ft_to_mm(level.Elevation)
         selected_connectors = [
@@ -796,13 +797,13 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
         trunk_diameter_mm = settings.trunk_diameter_mm
         if (layout["source_diameter_mm"] is not None and
                 abs(trunk_diameter_mm - layout["source_diameter_mm"]) > 0.5):
-            forms.alert(
+            show_result(
+                title,
                 u"The trunk diameter in the settings window ({0:g} mm) must "
                 u"match the selected source pipe ({1:g} mm). This slice does "
                 u"not place source reducers yet.".format(
                     float(trunk_diameter_mm),
-                    float(layout["source_diameter_mm"])),
-                title=title)
+                    float(layout["source_diameter_mm"])))
             return None, None
 
         parallel_offset_mm = settings.parallel_offset_mm
@@ -833,7 +834,7 @@ def run_wizard(uidoc, doc, standard, pipe_type_name,
             corridor_points = corridor_points_from_connected_walls(
                 confirmed_walls, horizontal_z_mm, origin_mm, target_points)
         except ValueError as e:
-            forms.alert(str(e), title=title)
+            show_result(title, str(e))
             return None, None
         offset_xy = _corridor_offset_vector(
             corridor_points, parallel_offset_mm)

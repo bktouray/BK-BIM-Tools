@@ -7,12 +7,11 @@ tag_flow.py), so each step's own logic still lives in exactly one place;
 this module owns none of it, just the sequencing.
 """
 
-from pyrevit import forms
-
 from bkbim.revit.adapter.mark_flow import run_auto_mark_flow
 from bkbim.revit.adapter.mark_type_reader import CATEGORIES
 from bkbim.revit.adapter.tag_flow import run_auto_tag_flow
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.result_dialog import show_result
 
 
 def choose_category():
@@ -37,7 +36,7 @@ def run_mark_and_tag_flow(doc, view, category, title):
         return  # user cancelled the Auto Mark step
 
     if mark_message:
-        forms.alert(mark_message, title=title)
+        show_result(title, mark_message)
     if mark_result is None:
         return  # nothing found for this category - nothing to tag either
 

@@ -11,11 +11,10 @@ __author__ = u"Baboucarr Katim Touray"
 __authors__ = [u"Baboucarr Katim Touray"]
 __doc__ = u"""Counts the currently selected elements, by category."""
 
-from pyrevit import forms
-
 from bkbim.app.commands import count_selected_command
 from bkbim.core import di
 from bkbim.revit.adapter.model_reader import RevitElementReader
+from bkbim.ui.views.result_dialog import show_result
 
 uidoc = __revit__.ActiveUIDocument
 
@@ -27,6 +26,6 @@ container.register_instance(di.SERVICE_ELEMENT_READER, RevitElementReader(uidoc)
 result = count_selected_command.run()
 
 if result.success:
-    forms.alert(result.message, title=__title__)
+    show_result(__title__, result.message)
 else:
-    forms.alert(u"Error: {0}".format(result.message), title=__title__)
+    show_result(__title__, u"Error: {0}".format(result.message))

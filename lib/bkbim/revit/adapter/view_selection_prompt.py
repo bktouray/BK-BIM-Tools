@@ -11,9 +11,8 @@ import clr
 clr.AddReference("RevitAPI")
 
 from Autodesk.Revit.DB import FilteredElementCollector, ViewPlan
-from pyrevit import forms
-
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.list_picker import show_multi_list_picker
 
 JUST_THIS_VIEW = u"Just this view"
 MULTIPLE_VIEWS = u"Apply to multiple views"
@@ -44,10 +43,10 @@ def pick_target_views(doc, current_view, title):
             label += u" (current)"
         name_map[label] = v
 
-    picked_names = forms.SelectFromList.show(
-        sorted(name_map.keys()),
-        title=u"Pick the views to run \"{0}\" on".format(title),
-        multiselect=True)
+    picked_names = show_multi_list_picker(
+        title,
+        u"Pick the views to run \"{0}\" on.".format(title),
+        sorted(name_map.keys()))
     if not picked_names:
         return [current_view]
 

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Lets an MEP flow pick one or more rooms with pyRevit's SelectFromList.
+"""Lets an MEP flow pick one or more rooms with the branded BK picker.
 
 The caller supplies the tool title so this shared prompt does not label
 Water Supply work as Sanitary Drainage.
 """
 
-from pyrevit import forms
+from bkbim.ui.views.list_picker import show_multi_list_picker
 
 
 def pick_rooms(rooms, title=u"Generate Sanitary Drainage"):
@@ -17,10 +17,10 @@ def pick_rooms(rooms, title=u"Generate Sanitary Drainage"):
         label = u"{0} - {1}".format(r.number, r.name)
         name_map[label] = r
 
-    picked_labels = forms.SelectFromList.show(
-        sorted(name_map.keys()),
-        title=u"{0} - Pick room(s)".format(title),
-        multiselect=True)
+    picked_labels = show_multi_list_picker(
+        title,
+        u"Pick the room(s) to include.",
+        sorted(name_map.keys()))
     if not picked_labels:
         return None
 

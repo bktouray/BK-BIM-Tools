@@ -7,7 +7,7 @@ tool cancel is hostile because the user loses all previous room/fixture/wall
 choices. These helpers let the caller retry the same pick step instead.
 """
 
-from pyrevit import forms
+from bkbim.ui.views.confirmation_dialog import show_confirmation
 
 
 def ask_retry_selection(title, detail=None):
@@ -18,4 +18,4 @@ def ask_retry_selection(title, detail=None):
         u"Continue from this same step?")
     if detail:
         message = u"{0}\n\n{1}".format(message, detail)
-    return forms.alert(message, title=title, yes=True, no=True)
+    return show_confirmation(title, message, yes_text=u"Continue", no_text=u"Cancel")

@@ -19,6 +19,7 @@ in any one wall type).
 from pyrevit import forms, script
 import bkd_walllegend as wl
 from bkbim.ui.views.wall_legend_options import show_wall_legend_options
+from bkbim.ui.views.result_dialog import show_result
 from Autodesk.Revit.DB import (
     FilteredElementCollector, View, ViewType, TextNoteType,
 )
@@ -46,15 +47,15 @@ def main():
             msg += (u"\n\nNo legend views exist yet. One-time setup:\n"
                     u"1. Project Browser -> right-click 'Legends' -> New Legend.\n"
                     u"2. Drag any one wall type into it (the 'seed').")
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
     if not wl.find_components(doc, view):
-        forms.alert(
+        show_result(
+            __title__,
             u"This legend has no legend component to use as a seed.\n\n"
             u"Drag ANY one wall type from the Project Browser into this\n"
-            u"legend once, then run the button again.",
-            title=__title__)
+            u"legend once, then run the button again.")
         return
 
     cfg = wl.load_config(doc) or {}
@@ -71,7 +72,7 @@ def main():
         key=wl.name_of)
 
     if not text_types:
-        forms.alert(u"No text types in this model.", title=__title__)
+        show_result(__title__, u"No text types in this model.")
         return
 
     result = show_wall_legend_options(views, wall_types, text_types, wl.name_of, wl.idv, cfg)
@@ -93,11 +94,15 @@ def main():
 
     count, msg = wl.generate(doc, view, cfg)
     if msg != u"ok":
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
     output.print_md(u"## Wall legend: **{0}** rows generated".format(count))
     output.print_md(u"Auto-refresh: **{0}**".format(u"ON" if cfg["auto"] else u"OFF"))
+    show_result(
+        __title__,
+        u"Wall legend generated: {0} row(s).\n\nAuto-refresh: {1}".format(
+            count, u"ON" if cfg["auto"] else u"OFF"))
 
 
 if __name__ == "__main__":

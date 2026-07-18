@@ -16,10 +16,10 @@ and mode. Optionally apply the same settings across several views at once.
 """
 
 from Autodesk.Revit.DB import ViewPlan
-from pyrevit import forms
 
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.structural_dimension_flow import choose_category, run_structural_dimension_flow
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -28,7 +28,7 @@ view = doc.ActiveView
 
 def main():
     if not isinstance(view, ViewPlan):
-        forms.alert(u"Please open a plan view.", title=__title__)
+        show_result(__title__, u"Please open a plan view.")
         return
 
     category = choose_category()

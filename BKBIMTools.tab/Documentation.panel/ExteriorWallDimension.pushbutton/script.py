@@ -33,6 +33,7 @@ from bkbim.revit.adapter.wall_context_builder import build_walls_with_context
 from bkbim.revit.adapter.wall_selection_prompt import pick_walls_manually
 from bkbim.ui.views.exterior_wall_dimension_options import show_exterior_wall_dimension_options
 from bkbim.ui.views.options_memory import to_remembered
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -41,7 +42,7 @@ view = doc.ActiveView
 
 def main():
     if not isinstance(view, ViewPlan):
-        forms.alert(u"Please open a plan view.", title=__title__)
+        show_result(__title__, u"Please open a plan view.")
         return
 
     standard = load_office_standard()
@@ -73,7 +74,7 @@ def main():
     walls_with_context = build_walls_with_context(
         doc, view, picked_walls, exterior_wall_ids=exterior_wall_ids)
     if not walls_with_context:
-        forms.alert(u"None of the selected walls are long enough to dimension.", title=__title__)
+        show_result(__title__, u"None of the selected walls are long enough to dimension.")
         return
 
     reference_provider = RevitReferenceProvider(doc, view)
@@ -92,14 +93,14 @@ def main():
             existing_dimension_checker, writer, failure_tracker, standard)
     except Exception as e:
         t.RollBack()
-        forms.alert(u"Error:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, u"Error:\n{0}".format(str(e)))
         return
 
     if result.success:
         t.Commit()
     else:
         t.RollBack()
-    forms.alert(result.message, title=__title__)
+    show_result(__title__, result.message)
 
 
 if __name__ == "__main__":

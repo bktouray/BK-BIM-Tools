@@ -92,8 +92,14 @@
             <RadioButton x:Name="InstanceModeRadio" GroupName="TypicalMode"/>
         </StackPanel>
 
-        <!-- Numeric value (far clip offset / margin - label set per category) -->
+        <!-- Numeric value(s): one shared field, plus an optional second field for
+             tools like Typical Footings that need separate top/bottom control. -->
         <StackPanel Grid.Row="6" Margin="0,12,0,0">
+            <StackPanel x:Name="ViewFamilyTypePanel" Margin="0,0,0,12">
+                <Label Content="Detail view type"/>
+                <ComboBox x:Name="ViewFamilyTypeCombo" Height="28"/>
+            </StackPanel>
+
             <Label x:Name="ValueLabel"/>
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -105,6 +111,20 @@
                 <TextBox x:Name="ValueTextBox" Grid.Column="1" Height="26"
                          VerticalContentAlignment="Center" TextAlignment="Right"/>
             </Grid>
+
+            <StackPanel x:Name="SecondaryValuePanel" Margin="0,12,0,0" Visibility="Collapsed">
+                <Label x:Name="SecondaryValueLabel"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="70"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider x:Name="SecondaryValueSlider" Grid.Column="0" Minimum="0" Maximum="1000"
+                            VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBox x:Name="SecondaryValueTextBox" Grid.Column="1" Height="26"
+                             VerticalContentAlignment="Center" TextAlignment="Right"/>
+                </Grid>
+            </StackPanel>
         </StackPanel>
 
         <!-- Row 7 ("*") intentionally empty: absorbs extra vertical space so the

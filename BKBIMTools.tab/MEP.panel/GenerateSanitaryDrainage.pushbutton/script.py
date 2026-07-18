@@ -11,8 +11,6 @@ and the nearby wall(s) in blue so you can confirm or reselect before
 anything is created.
 """
 
-from pyrevit import forms
-
 from Autodesk.Revit.DB import FilteredElementCollector
 from Autodesk.Revit.DB.Plumbing import PipeType
 
@@ -20,6 +18,8 @@ from bkbim.core.tool_memory import recall, remember
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.element_naming import type_name
 from bkbim.revit.adapter.mep.sanitary_drainage_flow import run_wizard
+from bkbim.ui.views.list_picker import show_list_picker
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -30,22 +30,17 @@ _PIPE_TYPE_KEY = u"mep.sanitary_drainage.pipe_type_name"
 def _pick_pipe_type():
     pipe_types = list(FilteredElementCollector(doc).OfClass(PipeType).ToElements())
     if not pipe_types:
-        forms.alert(u"No Pipe Types found in this project.", title=__title__)
+        show_result(__title__, u"No Pipe Types found in this project.")
         return None
     names = sorted(set(type_name(pt) for pt in pipe_types))
 
-    # Surface last run's pick at the top of the list (Tool Memory, PROJECT
-    # layer - this project's loaded PipeTypes are project-specific) - a real
-    # pre-selected default isn't available through forms.SelectFromList, so
-    # this is the cheap, honest equivalent: still one click, but the
-    # remembered choice is immediately visible instead of buried
-    # alphabetically.
     remembered = recall(_PIPE_TYPE_KEY, doc=doc)
     if remembered in names:
         names = [remembered] + [n for n in names if n != remembered]
 
-    return forms.SelectFromList.show(
-        names, title=u"Pick the pipe type to route Sanitary Drainage with", multiselect=False)
+    return show_list_picker(
+        __title__, u"Pick the pipe type to route Sanitary Drainage with.",
+        names, default_label=remembered if remembered in names else None)
 
 
 def main():
@@ -56,7 +51,7 @@ def main():
     standard = load_office_standard()
     result, message = run_wizard(uidoc, doc, standard, u"intermittent", pipe_type_name)
     if message:
-        forms.alert(message, title=__title__)
+        show_result(__title__, message)
     if result is not None and result.success:
         remember(_PIPE_TYPE_KEY, pipe_type_name, doc=doc)
 

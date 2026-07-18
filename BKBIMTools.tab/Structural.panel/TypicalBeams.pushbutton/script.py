@@ -15,17 +15,20 @@ and cuts a cross-section detail view at each typical beam's mid-span with
 a configurable far clip offset.
 """
 
-from pyrevit import revit, DB, forms, script
+from pyrevit import revit, DB, script
 
 import sys as _sys
-for _m in [_n for _n in list(_sys.modules) if _n.startswith("bkbim.automation")]:
+for _m in [_n for _n in list(_sys.modules)
+           if _n.startswith("bkbim.automation")
+           or _n == "bkbim.ui.views.typical_section_options"]:
     del _sys.modules[_m]
 
 from bkbim.automation.common import to_feet
 from bkbim.automation.typical_views import (
     cut_beam_section, cut_typical_views,
-    group_by_mark, pick_section_view_family_type, unmarked_elements,
+    group_by_mark, list_typical_view_family_types, unmarked_elements,
 )
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.typical_section_options import show_typical_section_options
 
 logger = script.get_logger()
@@ -38,6 +41,13 @@ MODE_LABEL_GROUP = u"One view per typical section (recommended)"
 MODE_LABEL_INSTANCE = u"One view per individual beam"
 
 
+def _name(el):
+    try:
+        return el.Name
+    except Exception:
+        return DB.Element.Name.__get__(el)
+
+
 def _collect_beams():
     collected = (DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_StructuralFraming)
                  .WhereElementIsNotElementType().ToElements())
@@ -46,39 +56,41 @@ def _collect_beams():
 
 def main():
     if doc is None:
-        forms.alert("No active Revit document.", title=__title__)
+        show_result(__title__, "No active Revit document.")
         return
 
     beams = _collect_beams()
     if not beams:
-        forms.alert("No beams found in the model.", title=__title__)
+        show_result(__title__, "No beams found in the model.")
         return
 
     missing = unmarked_elements(beams)
     if missing:
-        forms.alert(
+        show_result(
+            __title__,
             "{0} of {1} beam(s) have no Mark yet.\n\n"
-            "Run Auto Mark for Beams first, then try again.".format(len(missing), len(beams)),
-            title=__title__)
+            "Run Auto Mark for Beams first, then try again.".format(len(missing), len(beams)))
         return
 
     groups = group_by_mark(beams)
     summary_lines = [u"{0}: {1} beam(s)".format(mark, len(members)) for mark, members in groups]
 
+    view_types = list_typical_view_family_types(doc)
+    if not view_types:
+        show_result(__title__, "No Detail or Section view family type found in this project.")
+        return
+
     options = show_typical_section_options(
         __title__.replace("\n", " "),
         u"{0} typical beam section(s) found across {1} beam(s).".format(len(groups), len(beams)),
         summary_lines, MODE_LABEL_GROUP, MODE_LABEL_INSTANCE,
-        u"Far clip offset beyond mid-span (mm)", _DEFAULT_FAR_CLIP_MM)
+        u"Far clip offset beyond mid-span (mm)", _DEFAULT_FAR_CLIP_MM,
+        view_family_types=view_types, view_family_type_name_fn=_name, default_view_family_type=view_types[0])
     if not options:
         return
     mode = options.mode
     far_clip_ft = to_feet(options.value_mm, "mm")
-
-    vft = pick_section_view_family_type(doc)
-    if vft is None:
-        forms.alert("No Section view family type found in this project.", title=__title__)
-        return
+    vft = options.view_family_type or view_types[0]
 
     def cutter(doc, elem, view_name, vft_id=vft.Id, far_clip_ft=far_clip_ft):
         return cut_beam_section(doc, vft_id, elem, far_clip_ft, view_name)
@@ -95,21 +107,21 @@ def main():
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error("Typical Beams failed: {0}".format(str(e)))
-        forms.alert("Typical Beams failed:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, "Typical Beams failed:\n{0}".format(str(e)))
         return
 
     if res.created == 0:
         msg = "No detail views were created."
         if res.errors:
             msg += "\n\n" + "\n".join(res.errors[:5])
-        forms.alert(msg, title=__title__)
+        show_result(__title__, msg)
         return
 
     extra = "\n{0} skipped.".format(res.skipped) if res.skipped else ""
-    forms.alert(
+    show_result(
+        __title__,
         "Typical Beams Complete.\n\n"
-        "Created {0} detail section view(s).{1}".format(res.created, extra),
-        title=__title__)
+        "Created {0} detail section view(s).{1}".format(res.created, extra))
 
 
 if __name__ == "__main__":

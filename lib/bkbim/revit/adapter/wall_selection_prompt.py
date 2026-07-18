@@ -42,13 +42,14 @@ clr.AddReference("RevitAPIUI")
 
 from Autodesk.Revit.DB import Wall
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from pyrevit import forms
 
 from bkbim.revit.adapter.dimension_type_reader import list_linear_dimension_types
 from bkbim.revit.adapter.element_naming import type_name
 from bkbim.revit.adapter.exterior_wall_detector import detect_exterior_walls
 from bkbim.revit.adapter.stable_representation import element_id_token
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.list_picker import show_list_picker
+from bkbim.ui.views.result_dialog import show_result
 
 AUTO_DETECT = u"Auto-detect exterior walls"
 PICK_MANUALLY = u"Pick manually"
@@ -120,8 +121,11 @@ def pick_exterior_perimeter_style(doc, title):
         return None
 
     names = [SAME_AS_MAIN_STYLE] + [type_name(dt) for dt in dimension_types]
-    picked = forms.SelectFromList.show(
-        names, title=u"Dimension style for the 2 extra exterior strings", multiselect=False)
+    picked = show_list_picker(
+        title,
+        u"Dimension style for the 2 extra exterior strings.",
+        names,
+        default_label=SAME_AS_MAIN_STYLE)
     if not picked or picked == SAME_AS_MAIN_STYLE:
         return None
 
@@ -137,13 +141,14 @@ def pick_walls_manually(uidoc, doc, title):
     manual picking (no auto-detect/skip choice first) can call this
     directly - see ExteriorWallDimension.pushbutton.
     """
-    forms.alert(
+    show_result(
+        title,
         u"It's time to select the exterior walls.\n\n"
         u"Click each exterior wall in the view (Ctrl+click or drag a box for "
         u"more than one), then click Finish on the ribbon/status bar.\n\n"
         u"Press Escape instead to skip - every wall will just get the "
         u"normal single-string dimensioning.",
-        title=title)
+        subtitle=u"After this window closes, continue in Revit.")
 
     try:
         picked_refs = uidoc.Selection.PickObjects(

@@ -51,7 +51,6 @@ import clr
 clr.AddReference("RevitAPI")
 
 from Autodesk.Revit.DB import FilteredElementCollector, Grid, Transaction
-from pyrevit import forms
 
 from bkbim.app.commands import auto_slab_outline_dimension_command, auto_structural_dimension_command
 from bkbim.core.tool_memory import recall, remember
@@ -79,6 +78,7 @@ from bkbim.ui.views.options_memory import to_remembered
 from bkbim.ui.views.slab_dimension_options import show_slab_dimension_options
 from bkbim.ui.views.structural_category_icons import structural_category_icon
 from bkbim.ui.views.structural_dimension_options import show_structural_dimension_options
+from bkbim.ui.views.result_dialog import show_result
 
 CATEGORY_SLAB = u"Slab"
 CATEGORIES = [CATEGORY_COLUMN, CATEGORY_BEAM, CATEGORY_FOOTING, CATEGORY_SLAB]
@@ -144,10 +144,10 @@ def _run_category(doc, target_views, standard, category, title):
             any_grids = True
 
     if not any_elements:
-        forms.alert(u"No {0} elements found in the selected view(s).".format(category.lower()), title=title)
+        show_result(title, u"No {0} elements found in the selected view(s).".format(category.lower()))
         return
     if not any_grids:
-        forms.alert(u"No grids found in the selected view(s).", title=title)
+        show_result(title, u"No grids found in the selected view(s).")
         return
 
     default_offset_mm = recall(_offset_key(category), default=standard.structural_chain_offset_mm, doc=doc)
@@ -207,7 +207,7 @@ def _run_slab(doc, target_views, standard, title):
             combined_types.setdefault(element_id_token(st.Id), st)
 
     if not any_slabs:
-        forms.alert(u"No slabs found in the selected view(s).", title=title)
+        show_result(title, u"No slabs found in the selected view(s).")
         return
 
     default_offset_mm = recall(_offset_key(CATEGORY_SLAB), default=standard.structural_chain_offset_mm, doc=doc)

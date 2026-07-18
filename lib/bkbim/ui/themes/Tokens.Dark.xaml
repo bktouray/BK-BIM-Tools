@@ -36,4 +36,27 @@
     <SolidColorBrush x:Key="Surface.Hover" Color="#4C5768"/>
     <SolidColorBrush x:Key="Border.Default" Color="#5A6577"/>
 
+    <!-- Shared form-control style. Keep dropdown controls readable against
+         dark BK windows by using a light native-control surface with dark
+         selected/dropdown text. -->
+    <Style TargetType="ComboBox">
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+        <Setter Property="Foreground" Value="#111827"/>
+        <Setter Property="TextElement.Foreground" Value="#111827"/>
+        <Setter Property="ItemTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" Foreground="#111827"/>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Foreground" Value="#111827"/>
+        <Setter Property="TextElement.Foreground" Value="#111827"/>
+    </Style>
+
 </ResourceDictionary>

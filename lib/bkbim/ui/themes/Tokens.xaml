@@ -26,4 +26,28 @@
     <SolidColorBrush x:Key="Surface.Hover" Color="#EEF2FF"/>
     <SolidColorBrush x:Key="Border.Default" Color="#DFE3E8"/>
 
+    <!-- Shared form-control style. ComboBox text can inherit badly from
+         Revit/Windows theme chrome, especially in pyRevit dark-mode windows;
+         force a readable light control with dark text for every BK options
+         window that merges this dictionary. -->
+    <Style TargetType="ComboBox">
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+        <Setter Property="Foreground" Value="#111827"/>
+        <Setter Property="TextElement.Foreground" Value="#111827"/>
+        <Setter Property="ItemTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" Foreground="#111827"/>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Foreground" Value="#111827"/>
+        <Setter Property="TextElement.Foreground" Value="#111827"/>
+    </Style>
+
 </ResourceDictionary>

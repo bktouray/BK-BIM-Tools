@@ -23,8 +23,6 @@ clr.AddReference("RevitAPIUI")
 
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction
 from Autodesk.Revit.DB.Plumbing import PipeType, PipingSystemType
-from pyrevit import forms
-
 from bkbim.app.commands import generate_sanitary_drainage_command
 from bkbim.domain.geometry.units import ft_to_mm
 from bkbim.revit.adapter.element_naming import type_name
@@ -36,6 +34,7 @@ from bkbim.revit.adapter.mep.room_reader import RevitRoomReader
 from bkbim.revit.adapter.mep.room_selection_prompt import pick_rooms
 from bkbim.revit.adapter.mep.wall_confirmation_prompt import confirm_walls, highlight_walls
 from bkbim.revit.adapter.stable_representation import element_id_token
+from bkbim.ui.views.result_dialog import show_result
 
 _TRANSACTION_LABEL = u"Generate Sanitary Drainage"
 _TITLE = u"Generate Sanitary Drainage"
@@ -154,7 +153,7 @@ def run_wizard(uidoc, doc, standard, usage_type, pipe_type_name):
     try:
         fixtures = RevitFixtureReader(doc).read_fixtures(rooms=picked_rooms)
         if not fixtures:
-            forms.alert(u"No plumbing fixtures found in the selected room(s).", title=_TITLE)
+            show_result(_TITLE, u"No plumbing fixtures found in the selected room(s).")
             return None, None
 
         for fixture in fixtures:
@@ -189,9 +188,10 @@ def run_wizard(uidoc, doc, standard, usage_type, pipe_type_name):
                 highlight_walls(doc, view, confirmed_walls, clear=True)
             clear_t.Commit()
 
-        forms.alert(
+        show_result(
+            _TITLE,
             u"Click the point this room's drainage connects to (the stack/riser).",
-            title=_TITLE)
+            subtitle=u"After this window closes, click the target point in Revit.")
         try:
             picked_point = uidoc.Selection.PickPoint(u"{0}: click the target/stack point".format(_TITLE))
         except Exception:

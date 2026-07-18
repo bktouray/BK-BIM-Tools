@@ -11,6 +11,7 @@ IronPython 2.7.
 from pyrevit import DB, forms
 
 from bkbim.ui.views.family_symbol_picker import show_family_symbol_picker
+from bkbim.ui.views.result_dialog import show_result
 
 
 def _name(el):
@@ -43,15 +44,15 @@ def load_family_from_file(doc):
         ok = doc.LoadFamily(path)
         t.Commit()
         if not ok:
-            forms.alert("That family is already loaded (or could not be "
-                        "loaded). Pick its type from the list.",
-                        title="Load Family")
+            show_result(
+                "Load Family",
+                "That family is already loaded (or could not be "
+                "loaded). Pick its type from the list.")
         return True
     except Exception as e:
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
-        forms.alert("Could not load family:\n{0}".format(str(e)),
-                    title="Load Family")
+        show_result("Load Family", "Could not load family:\n{0}".format(str(e)))
         return False
 
 

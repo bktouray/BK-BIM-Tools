@@ -12,7 +12,7 @@ is intentionally NOT being done for the CAD-to-Revit tools) - only the UI
 layer changed.
 """
 
-from pyrevit import DB, forms, script
+from pyrevit import DB, script
 
 from bkbim.automation import cadreader
 from bkbim.automation.columns import extract_rectangles, get_or_create_sized_type, group_by_size, place_columns
@@ -21,7 +21,9 @@ from bkbim.automation.familyutils import collect_symbols, pick_family_symbol
 from bkbim.core.tool_memory import recall, remember
 from bkbim.revit.adapter.cad_prescan_prompt import list_levels, list_materials, pick_cad_import, pick_cad_layer
 from bkbim.revit.adapter.element_naming import type_name
+from bkbim.ui.views.category_picker import show_category_picker
 from bkbim.ui.views.column_options import show_column_options
+from bkbim.ui.views.result_dialog import show_result
 
 _SNAP = 5.0  # mm rounding for section grouping
 
@@ -37,7 +39,7 @@ def _make_base_family_picker(doc, bic, title):
 
 def run_auto_column_flow(doc, title):
     if doc is None:
-        forms.alert(u"No active Revit document.", title=title)
+        show_result(title, u"No active Revit document.")
         return
 
     logger = script.get_logger()
@@ -50,8 +52,8 @@ def run_auto_column_flow(doc, title):
     if layer is None:
         return
 
-    category = forms.CommandSwitchWindow.show(
-        [u"Structural", u"Architectural"], message=u"Column category:")
+    category = show_category_picker(
+        title, u"Column category:", [u"Structural", u"Architectural"])
     if not category:
         return
     structural = (category == u"Structural")
@@ -60,14 +62,16 @@ def run_auto_column_flow(doc, title):
     curves = cadreader.curves_on_layer(doc, inst, layer)
     rects = extract_rectangles(curves)
     if not rects:
-        forms.alert(u"No closed rectangular columns found on layer '{0}'.\n\n"
-                   u"Columns must be drawn as closed rectangles.".format(layer), title=title)
+        show_result(
+            title,
+            u"No closed rectangular columns found on layer '{0}'.\n\n"
+            u"Columns must be drawn as closed rectangles.".format(layer))
         return
     groups = group_by_size(rects, snap=_SNAP)
 
     levels = list_levels(doc)
     if not levels:
-        forms.alert(u"No levels in the model.", title=title)
+        show_result(title, u"No levels in the model.")
         return
     materials = list_materials(doc)
     existing_types_by_label = collect_symbols(doc, [bic])
@@ -116,24 +120,26 @@ def run_auto_column_flow(doc, title):
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error(u"Column generation failed: {0}".format(str(e)))
-        forms.alert(u"Column generation failed:\n{0}".format(str(e)), title=title)
+        show_result(title, u"Column generation failed:\n{0}".format(str(e)))
         return
 
     if res.placed == 0:
         if res.skipped and not res.errors:
-            forms.alert(u"All {0} column(s) already exist - nothing new to "
-                       u"add.".format(res.skipped), title=title)
+            show_result(
+                title,
+                u"All {0} column(s) already exist - nothing new to add.".format(
+                    res.skipped))
             return
         msg = u"No columns were placed."
         if res.errors:
             msg += u"\n\n" + u"\n".join(res.errors[:5])
-        forms.alert(msg, title=title)
+        show_result(title, msg)
         return
 
     extra = u"\n{0} already existed (skipped).".format(res.skipped) if res.skipped else u""
-    forms.alert(
+    show_result(
+        title,
         u"Column Generation Complete.\n\n"
-        u"Successfully placed {0} Columns.{1}".format(res.placed, extra),
-        title=title)
+        u"Successfully placed {0} Columns.{1}".format(res.placed, extra))
     if res.errors:
         output.print_md(u"**Notes:** " + u"; ".join(res.errors[:5]))

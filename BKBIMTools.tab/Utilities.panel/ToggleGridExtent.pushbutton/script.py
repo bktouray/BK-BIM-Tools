@@ -19,6 +19,7 @@ from pyrevit import forms
 from bkbim.app.commands import toggle_grid_extent_command
 from bkbim.revit.adapter.grid_extent_reader import list_grids_with_extent
 from bkbim.revit.adapter.grid_extent_writer import RevitGridExtentWriter
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -28,7 +29,7 @@ view = doc.ActiveView
 def main():
     grids = list_grids_with_extent(doc, view)
     if not grids:
-        forms.alert(u"No grids found in this view.", title=__title__)
+        show_result(__title__, u"No grids found in this view.")
         return
 
     writer = RevitGridExtentWriter(doc, view)
@@ -39,14 +40,14 @@ def main():
         result = toggle_grid_extent_command.run(grids, writer)
     except Exception as e:
         t.RollBack()
-        forms.alert(u"Error:\n{0}".format(str(e)), title=__title__)
+        show_result(__title__, u"Error:\n{0}".format(str(e)))
         return
 
     if result.success:
         t.Commit()
     else:
         t.RollBack()
-    forms.alert(result.message, title=__title__)
+    show_result(__title__, result.message)
 
 
 if __name__ == "__main__":

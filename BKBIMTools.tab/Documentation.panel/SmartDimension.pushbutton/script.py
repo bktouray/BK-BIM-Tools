@@ -30,6 +30,7 @@ from bkbim.revit.adapter.structural_dimension_flow import (
 from bkbim.revit.adapter.view_selection_prompt import pick_target_views
 from bkbim.revit.adapter.wall_dimension_flow import run_wall_dimension_flow
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -105,7 +106,7 @@ def _run_auto_detect(standard):
         for v in target_views)
 
     if not grids_present and not walls_present and not has_columns:
-        forms.alert(u"No grids, walls, or columns found in the selected view(s).", title=__title__)
+        show_result(__title__, u"No grids, walls, or columns found in the selected view(s).")
         return
 
     include_columns = False
@@ -137,7 +138,7 @@ _RUNNERS = {
 
 def main():
     if not isinstance(view, ViewPlan):
-        forms.alert(u"Please open a plan view.", title=__title__)
+        show_result(__title__, u"Please open a plan view.")
         return
 
     discipline_hint = u"Structural" if view.Discipline == ViewDiscipline.Structural else u"Architectural"

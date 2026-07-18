@@ -31,6 +31,8 @@ from System.Windows.Controls import Button, TextBlock
 from bkbim.core.manifest import get_module_registry
 from bkbim.core.settings_registry import get_settings_page_registry
 from bkbim.ui.tokens import resolve_tokens_path
+from bkbim.ui.views.confirmation_dialog import show_confirmation
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.settings import register_all_manifests, register_all_pages
 
 _WORKSPACE_PRESETS = [
@@ -135,8 +137,9 @@ class SettingsWindow(forms.WPFWindow):
             return True
         errors = page.validate()
         if errors:
-            forms.alert(u"Cannot save - fix the following first:\n\n" + u"\n".join(errors),
-                        title=u"BK BIM Tools Settings")
+            show_result(
+                u"BK BIM Tools Settings",
+                u"Cannot save - fix the following first:\n\n" + u"\n".join(errors))
             return False
         return True
 
@@ -149,7 +152,9 @@ class SettingsWindow(forms.WPFWindow):
         try:
             page.apply()
         except Exception as e:
-            forms.alert(u"Error saving settings:\n{0}".format(str(e)), title=u"BK BIM Tools Settings")
+            show_result(
+                u"BK BIM Tools Settings",
+                u"Error saving settings:\n{0}".format(str(e)))
             return False
         return True
 
@@ -167,17 +172,18 @@ class SettingsWindow(forms.WPFWindow):
         page = self._active_page
         if page is None or not hasattr(page, "reset_to_defaults"):
             return
-        result = forms.alert(
+        result = show_confirmation(
+            u"BK BIM Tools Settings",
             u"Reset this page's fields to their defaults? This does not save until "
             u"you click Apply or OK.",
-            title=u"BK BIM Tools Settings", yes=True, no=True)
+            yes_text=u"Reset", no_text=u"Cancel")
         if result:
             page.reset_to_defaults()
 
     def _on_import(self, sender, args):
         page = self._active_page
         if page is None or not hasattr(page, "import_from_file"):
-            forms.alert(u"This page doesn't support Import.", title=u"BK BIM Tools Settings")
+            show_result(u"BK BIM Tools Settings", u"This page doesn't support Import.")
             return
         path = forms.pick_file(file_ext="json", title=u"Import Settings")
         if not path:
@@ -185,12 +191,12 @@ class SettingsWindow(forms.WPFWindow):
         try:
             page.import_from_file(path)
         except Exception as e:
-            forms.alert(u"Import failed:\n{0}".format(str(e)), title=u"BK BIM Tools Settings")
+            show_result(u"BK BIM Tools Settings", u"Import failed:\n{0}".format(str(e)))
 
     def _on_export(self, sender, args):
         page = self._active_page
         if page is None or not hasattr(page, "export_to_file"):
-            forms.alert(u"This page doesn't support Export.", title=u"BK BIM Tools Settings")
+            show_result(u"BK BIM Tools Settings", u"This page doesn't support Export.")
             return
         path = forms.save_file(file_ext="json", default_name=self._active_page_id + u".json",
                                title=u"Export Settings")
@@ -199,4 +205,4 @@ class SettingsWindow(forms.WPFWindow):
         try:
             page.export_to_file(path)
         except Exception as e:
-            forms.alert(u"Export failed:\n{0}".format(str(e)), title=u"BK BIM Tools Settings")
+            show_result(u"BK BIM Tools Settings", u"Export failed:\n{0}".format(str(e)))

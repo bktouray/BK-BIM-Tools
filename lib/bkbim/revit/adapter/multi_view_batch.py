@@ -12,7 +12,7 @@ import clr
 clr.AddReference("RevitAPI")
 
 from Autodesk.Revit.DB import TransactionGroup
-from pyrevit import forms
+from bkbim.ui.views.result_dialog import show_result
 
 
 def run_across_views(doc, target_views, transaction_label, per_view_fn):
@@ -38,9 +38,9 @@ def alert_batch_results(results, title):
     alert text unchanged.
     """
     if len(results) > 1:
-        forms.alert(
-            u"\n\n".join(u"{0}: {1}".format(name, msg) for name, msg in results),
-            title=title)
+        show_result(
+            title,
+            u"\n\n".join(u"{0}: {1}".format(name, msg) for name, msg in results))
     else:
         _, msg = results[0]
-        forms.alert(msg, title=title)
+        show_result(title, msg)

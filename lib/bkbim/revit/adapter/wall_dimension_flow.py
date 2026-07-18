@@ -30,7 +30,6 @@ import clr
 clr.AddReference("RevitAPI")
 
 from Autodesk.Revit.DB import BuiltInCategory, FilteredElementCollector, Transaction, Wall
-from pyrevit import forms
 
 from bkbim.app.commands import auto_wall_opening_dimension_command
 from bkbim.core.tool_memory import recall, remember
@@ -54,6 +53,7 @@ from bkbim.revit.adapter.wall_selection_prompt import (
 from bkbim.revit.adapter.wall_type_reader import list_wall_types_in_view
 from bkbim.ui.views.category_picker import show_category_picker
 from bkbim.ui.views.options_memory import to_remembered
+from bkbim.ui.views.result_dialog import show_result
 from bkbim.ui.views.wall_opening_dimension_options import show_wall_opening_dimension_options
 
 _TRANSACTION_LABEL = u"Auto Dimension Walls & Openings"
@@ -76,7 +76,7 @@ def run_wall_dimension_flow(doc, uidoc, view, standard, title, target_views=None
             combined_wall_types.setdefault(element_id_token(wt.Id), wt)
 
     if not combined_wall_types:
-        forms.alert(u"No walls found in the selected view(s).", title=title)
+        show_result(title, u"No walls found in the selected view(s).")
         return
 
     default_offset_mm = recall(_OFFSET_KEY, default=standard.offset_first_mm, doc=doc)

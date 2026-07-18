@@ -26,7 +26,9 @@ from bkbim.automation.openings import (
 from bkbim.core.tool_memory import recall, remember
 from bkbim.revit.adapter.cad_prescan_prompt import list_levels, pick_cad_import, pick_cad_layer
 from bkbim.revit.adapter.element_naming import type_name
+from bkbim.ui.views.category_picker import show_category_picker
 from bkbim.ui.views.opening_options import show_opening_options
+from bkbim.ui.views.result_dialog import show_result
 
 _SNAP = 5.0
 
@@ -45,7 +47,7 @@ def run_opening_flow(doc, bic, kind, default_width_mm, default_lintel_mm, defaul
     """kind: 'Door' or 'Window'. bic: DB.BuiltInCategory."""
     title = u"Auto{0}".format(kind)
     if doc is None:
-        forms.alert(u"No active Revit document.", title=title)
+        show_result(title, u"No active Revit document.")
         return
 
     logger = script.get_logger()
@@ -54,9 +56,11 @@ def run_opening_flow(doc, bic, kind, default_width_mm, default_lintel_mm, defaul
     if inst is None:
         return
 
-    mode = forms.CommandSwitchWindow.show(
+    mode = show_category_picker(
+        title,
+        u"How are the openings drawn in the CAD?",
         [u"Centre-line marker (one line per opening)", u"Parallel jamb lines (distance = width)"],
-        message=u"How are the openings drawn in the CAD?")
+    )
     if not mode:
         return
     marker_mode = mode.startswith(u"Centre-line")
@@ -81,14 +85,16 @@ def run_opening_flow(doc, bic, kind, default_width_mm, default_lintel_mm, defaul
         ops = extract_openings(curves, max_width_ft=max_w_ft)
 
     if not ops:
-        forms.alert(u"No openings found on layer '{0}'.\n\n"
-                   u"Openings must be drawn as two parallel lines.".format(layer), title=title)
+        show_result(
+            title,
+            u"No openings found on layer '{0}'.\n\n"
+            u"Openings must be drawn as two parallel lines.".format(layer))
         return
     groups = group_by_width(ops, snap=_SNAP)
 
     levels = list_levels(doc)
     if not levels:
-        forms.alert(u"No levels in the model.", title=title)
+        show_result(title, u"No levels in the model.")
         return
     existing_types_by_label = collect_symbols(doc, [bic])
     existing_labels = sorted(existing_types_by_label.keys())
@@ -135,13 +141,15 @@ def run_opening_flow(doc, bic, kind, default_width_mm, default_lintel_mm, defaul
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         logger.error(u"{0} failed: {1}".format(title, str(e)))
-        forms.alert(u"{0} failed:\n{1}".format(title, str(e)), title=title)
+        show_result(title, u"{0} failed:\n{1}".format(title, str(e)))
         return
 
     if res.placed == 0:
         if res.skipped and not res.no_host and not res.errors:
-            forms.alert(u"All {0} {1}(s) already exist - nothing new to "
-                       u"add.".format(res.skipped, kind.lower()), title=title)
+            show_result(
+                title,
+                u"All {0} {1}(s) already exist - nothing new to "
+                u"add.".format(res.skipped, kind.lower()))
             return
         msg = u"No {0}s were placed.".format(kind.lower())
         if res.no_host:
@@ -149,7 +157,7 @@ def run_opening_flow(doc, bic, kind, default_width_mm, default_lintel_mm, defaul
                    u"first so there are walls to host into.".format(res.no_host)
         if res.errors:
             msg += u"\n\n" + u"\n".join(res.errors[:5])
-        forms.alert(msg, title=title)
+        show_result(title, msg)
         return
 
     extra_msg = u""
@@ -157,7 +165,7 @@ def run_opening_flow(doc, bic, kind, default_width_mm, default_lintel_mm, defaul
         extra_msg += u"\n{0} already existed (skipped).".format(res.skipped)
     if res.no_host:
         extra_msg += u"\n{0} had no host wall (skipped).".format(res.no_host)
-    forms.alert(
+    show_result(
+        title,
         u"{0} Generation Complete.\n\n"
-        u"Successfully placed {1} {2}(s).{3}".format(kind, res.placed, kind.lower(), extra_msg),
-        title=title)
+        u"Successfully placed {1} {2}(s).{3}".format(kind, res.placed, kind.lower(), extra_msg))

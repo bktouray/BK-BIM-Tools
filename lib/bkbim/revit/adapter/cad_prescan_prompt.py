@@ -16,19 +16,22 @@ structural_types into show_structural_dimension_options() rather than
 letting the window read Revit itself.
 """
 
-from pyrevit import DB, forms
+from pyrevit import DB
 
 from bkbim.automation import cadreader
 from bkbim.revit.adapter.element_naming import type_name
+from bkbim.ui.views.list_picker import show_list_picker
+from bkbim.ui.views.result_dialog import show_result
 
 
 def pick_cad_import(doc, title):
     """Pick which ImportInstance to read from. Auto-picks the only one."""
     imports = cadreader.get_import_instances(doc)
     if not imports:
-        forms.alert(u"No imported CAD (DWG) found in this model.\n\n"
-                    u"Insert > Import CAD, then run this tool again.",
-                    title=title)
+        show_result(
+            title,
+            u"No imported CAD (DWG) found in this model.\n\n"
+            u"Insert > Import CAD, then run this tool again.")
         return None
     if len(imports) == 1:
         return imports[0]
@@ -36,7 +39,8 @@ def pick_cad_import(doc, title):
     for inst in imports:
         te = doc.GetElement(inst.GetTypeId())
         opts[type_name(te) if te else str(inst.Id)] = inst
-    pick = forms.SelectFromList.show(sorted(opts.keys()), title=u"Select CAD import")
+    pick = show_list_picker(
+        title, u"Select the CAD import to read.", sorted(opts.keys()))
     return opts.get(pick)
 
 
@@ -44,7 +48,7 @@ def pick_cad_layer(doc, inst, title, hint):
     """Pick a CAD layer, pre-selecting the first one whose name contains `hint`."""
     layers = [(n, c) for (n, c) in cadreader.list_layers(doc, inst) if c > 0]
     if not layers:
-        forms.alert(u"No line geometry in the CAD import.", title=title)
+        show_result(title, u"No line geometry in the CAD import.")
         return None
     labels = [u"{0}   ({1} segments)".format(n, c) for (n, c) in layers]
     default = labels[0]
@@ -52,9 +56,11 @@ def pick_cad_layer(doc, inst, title, hint):
         if hint in n.lower():
             default = labels[i]
             break
-    pick = forms.SelectFromList.show(
-        labels, title=u"{0} - pick the {1} layer".format(title, hint.upper()),
-        default=default)
+    pick = show_list_picker(
+        title,
+        u"Pick the {0} CAD layer.".format(hint.upper()),
+        labels,
+        default_label=default)
     if not pick:
         return None
     return layers[labels.index(pick)][0]

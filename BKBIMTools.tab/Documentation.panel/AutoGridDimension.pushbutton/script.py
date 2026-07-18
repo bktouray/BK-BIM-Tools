@@ -17,10 +17,10 @@ views at once - pick a style and spacing, then Run.
 """
 
 from Autodesk.Revit.DB import ViewPlan
-from pyrevit import forms
 
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.grid_dimension_flow import run_grid_dimension_flow
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -29,7 +29,7 @@ view = doc.ActiveView
 
 def main():
     if not isinstance(view, ViewPlan):
-        forms.alert(u"Please open a plan view.", title=__title__)
+        show_result(__title__, u"Please open a plan view.")
         return
 
     standard = load_office_standard()

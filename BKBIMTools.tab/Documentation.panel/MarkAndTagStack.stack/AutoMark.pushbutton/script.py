@@ -15,9 +15,8 @@ instance gets a Mark - largest type first, numbered continuously per
 family.
 """
 
-from pyrevit import forms
-
 from bkbim.revit.adapter.mark_flow import choose_category, run_auto_mark_flow
+from bkbim.ui.views.result_dialog import show_result
 
 doc = __revit__.ActiveUIDocument.Document
 
@@ -29,7 +28,7 @@ def main():
 
     result, message = run_auto_mark_flow(doc, category, __title__)
     if message:
-        forms.alert(message, title=__title__)
+        show_result(__title__, message)
 
 
 if __name__ == "__main__":
