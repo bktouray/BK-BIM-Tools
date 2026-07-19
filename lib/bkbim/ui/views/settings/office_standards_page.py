@@ -29,6 +29,7 @@ import json
 import clr
 
 clr.AddReference("PresentationFramework")
+clr.AddReference("PresentationCore")
 
 from System.Windows import (
     FontWeights, GridLength, GridUnitType, TextAlignment, TextWrapping, Thickness, VerticalAlignment,

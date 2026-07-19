@@ -31,6 +31,7 @@ since an existing type already carries its own height.
 import clr
 
 clr.AddReference("PresentationFramework")
+clr.AddReference("PresentationCore")
 
 from System.Windows import CornerRadius, FontWeights, GridLength, GridUnitType, Thickness, Visibility
 from System.Windows.Controls import (

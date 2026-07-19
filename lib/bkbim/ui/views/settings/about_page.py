@@ -7,6 +7,10 @@ always reflects whatever modules have actually registered a manifest -
 currently just Office Standards.
 """
 
+import clr
+
+clr.AddReference("PresentationCore")
+
 from System.Windows import FontWeights, TextWrapping, Thickness
 from System.Windows.Controls import StackPanel, TextBlock
 

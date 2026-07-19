@@ -7,6 +7,10 @@ a "Brand.Primary" brush in its own resources (same convention every window in
 this suite already follows for its other local Styles).
 """
 
+import clr
+
+clr.AddReference("PresentationCore")
+
 from System.Windows import FontWeights, TextWrapping, Thickness
 from System.Windows.Controls import Orientation, StackPanel, TextBlock
 

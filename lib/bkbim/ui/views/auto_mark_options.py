@@ -18,6 +18,7 @@ import os
 import clr
 
 clr.AddReference("PresentationFramework")
+clr.AddReference("PresentationCore")
 
 from System.Windows import (
     CornerRadius, FontWeights, GridLength, GridUnitType, Thickness, Visibility, VerticalAlignment,
