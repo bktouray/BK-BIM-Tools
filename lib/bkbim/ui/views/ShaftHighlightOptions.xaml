@@ -1,0 +1,136 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Highlight Shafts"
+    Width="520"
+    SizeToContent="Height"
+    MinWidth="460" MinHeight="560"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleText" Text="Highlight Shafts" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,14,0,0"/>
+
+        <ScrollViewer Grid.Row="2" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <StackPanel>
+                    <Label Content="Plan views"/>
+                    <ListBox x:Name="ViewsList" Height="120" SelectionMode="Extended"/>
+                </StackPanel>
+
+                <Separator Margin="0,14,0,14"/>
+
+                <StackPanel>
+                    <Label Content="Fill"/>
+                    <RadioButton x:Name="ExistingFillRadio" Content="Use an existing filled region type"
+                                 GroupName="FillMode" IsChecked="True" Margin="0,0,0,4"/>
+                    <ComboBox x:Name="FillTypeCombo" Margin="18,4,0,8"/>
+
+                    <RadioButton x:Name="CustomFillRadio" Content="Create or update BK Shaft Highlight from colour"
+                                 GroupName="FillMode"/>
+
+                    <Grid x:Name="CustomColorPanel" Margin="18,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="56"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="54"/>
+                            <ColumnDefinition Width="40"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Red" Foreground="{StaticResource Text.Primary}"
+                                   VerticalAlignment="Center"/>
+                        <Slider x:Name="RedSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255"
+                                IsSnapToTickEnabled="True" TickFrequency="1" Margin="0,0,10,0"/>
+                        <TextBox x:Name="RedText" Grid.Row="0" Grid.Column="2"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Green" Foreground="{StaticResource Text.Primary}"
+                                   VerticalAlignment="Center" Margin="0,8,0,0"/>
+                        <Slider x:Name="GreenSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255"
+                                IsSnapToTickEnabled="True" TickFrequency="1" Margin="0,8,10,0"/>
+                        <TextBox x:Name="GreenText" Grid.Row="1" Grid.Column="2" Margin="0,8,0,0"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Blue" Foreground="{StaticResource Text.Primary}"
+                                   VerticalAlignment="Center" Margin="0,8,0,0"/>
+                        <Slider x:Name="BlueSlider" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255"
+                                IsSnapToTickEnabled="True" TickFrequency="1" Margin="0,8,10,0"/>
+                        <TextBox x:Name="BlueText" Grid.Row="2" Grid.Column="2" Margin="0,8,0,0"/>
+
+                        <Rectangle x:Name="ColorSwatch" Grid.Row="0" Grid.RowSpan="3" Grid.Column="3"
+                                   Width="28" Height="76" RadiusX="3" RadiusY="3"
+                                   Stroke="{StaticResource Border.Default}" StrokeThickness="1"
+                                   VerticalAlignment="Stretch" HorizontalAlignment="Right"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Margin="0,14,0,0">
+                    <Label Content="Boundary line style"/>
+                    <ComboBox x:Name="BoundaryLineStyleCombo"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,14,0,0">
+                    <CheckBox x:Name="DrawXCheckBox" Content="Draw diagonal X-lines" IsChecked="True"/>
+                    <ComboBox x:Name="XLineStyleCombo" Margin="18,8,0,0"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,14,0,0">
+                    <CheckBox x:Name="GroupResultsCheckBox" Content="Group generated highlights per view" IsChecked="True"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="Run" IsDefault="True"
+                    Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

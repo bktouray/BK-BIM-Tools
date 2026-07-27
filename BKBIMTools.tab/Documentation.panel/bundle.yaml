@@ -11,7 +11,8 @@ title: Documentation
 # nicely... kinda like a triangle arrangement"; more scheduling tools land
 # here later). (This panel was itself originally called "Documentation"
 # before being split into "Dimensioning" + "Modeling" on 2026-07-06 for
-# function-based grouping - recombined 2026-07-08.)
+# function-based grouping - recombined 2026-07-08. Highlight Shafts lives
+# with Wall Legend as a documentation/annotation helper.)
 layout:
   - SmartDimension
   - AutoGridDimension
@@ -20,6 +21,7 @@ layout:
   - AutoStructuralDimension
   - "---"
   - WallLegend
+  - HighlightShafts
   - "---"
   - AutoMarkAndTag
   - MarkAndTagStack
