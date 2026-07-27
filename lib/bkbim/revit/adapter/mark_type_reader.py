@@ -8,7 +8,9 @@ Dimension reading differs by category since there's no single Revit
 parameter scheme that covers all of them:
 - Doors/Windows have real BuiltInParameters (DOOR_WIDTH/DOOR_HEIGHT etc.),
   read off the type first, same convention as lib/bkbim/boq/extractors.py's
-  door/window fields.
+  door/window fields. They also split same-type instances by host wall
+  thickness so the same door/window in two walls can receive A/B suffixes
+  under one base mark.
 - Columns/Beams/Footings have no universal BuiltInParameter for their
   section/plan dimensions - family authors use all sorts of display names
   ("b"/"h", "Width"/"Depth", "bf"/"d", ...), so these fall back to a list of
@@ -140,6 +142,49 @@ _DIMENSION_READERS = {
     CATEGORY_BEAMS: lambda symbol: _lookup_pair_mm(symbol, _COLUMN_BEAM_BH_PAIRS),
     CATEGORY_FOOTINGS: lambda symbol: _lookup_pair_mm(symbol, _FOOTING_LW_PAIRS),
 }
+
+
+def _host_wall_thickness_mm(elem):
+    """Returns the host wall thickness in rounded millimeters when readable.
+
+    Doors/windows normally expose a Wall as FamilyInstance.Host. Revit API
+    versions and host conditions vary, so this tries the common direct Wall
+    width first, then WallType.Width. Returning None groups unresolved hosts
+    together without blocking Auto Mark.
+    """
+    try:
+        host = elem.Host
+    except Exception:
+        host = None
+    if host is None:
+        return None
+
+    try:
+        width_ft = host.Width
+        if width_ft:
+            return int(round(ft_to_mm(width_ft)))
+    except Exception:
+        pass
+
+    try:
+        wall_type = host.WallType
+        width_ft = wall_type.Width
+        if width_ft:
+            return int(round(ft_to_mm(width_ft)))
+    except Exception:
+        pass
+    try:
+        wall_type = elem.Document.GetElement(host.GetTypeId())
+        width_ft = wall_type.Width
+        if width_ft:
+            return int(round(ft_to_mm(width_ft)))
+    except Exception:
+        pass
+    return None
+
+
+def _uses_host_wall_thickness(category):
+    return category in (CATEGORY_DOORS, CATEGORY_WINDOWS)
 
 
 # ---------------------------------------------------------------------------
@@ -357,8 +402,10 @@ def read_family_groups(doc, category):
     # footing, needlessly expensive at real model scale.
     rebar_by_host = _build_rebar_by_host(doc) if reinforcement_reader is not None else {}
 
-    elements_by_symbol_id = {}
-    symbol_by_id = {}
+    split_by_host_thickness = _uses_host_wall_thickness(category)
+    elements_by_group_key = {}
+    symbol_by_group_key = {}
+    host_thickness_by_group_key = {}
     for built_in_category in CATEGORY_BUILTIN_CATEGORIES[category]:
         collected = (FilteredElementCollector(doc).OfCategory(built_in_category)
                      .WhereElementIsNotElementType().ToElements())
@@ -370,15 +417,19 @@ def read_family_groups(doc, category):
                 continue
             if category == CATEGORY_FOOTINGS and _is_pcc_blinding_pad(symbol):
                 continue
-            key = element_id_token(symbol.Id)
-            symbol_by_id[key] = symbol
-            elements_by_symbol_id.setdefault(key, []).append(elem)
+            symbol_key = element_id_token(symbol.Id)
+            host_thickness_mm = _host_wall_thickness_mm(elem) if split_by_host_thickness else None
+            key = (symbol_key, host_thickness_mm) if split_by_host_thickness else symbol_key
+            symbol_by_group_key[key] = symbol
+            host_thickness_by_group_key[key] = host_thickness_mm
+            elements_by_group_key.setdefault(key, []).append(elem)
 
     families = {}
-    for key, elements in elements_by_symbol_id.items():
-        symbol = symbol_by_id[key]
+    for key, elements in elements_by_group_key.items():
+        symbol = symbol_by_group_key[key]
         family_name = _family_name(symbol)
         dimension_a_mm, dimension_b_mm = dimension_reader(symbol)
+        host_thickness_mm = host_thickness_by_group_key.get(key)
 
         reinforcement_groups = None
         if reinforcement_reader is not None:
@@ -406,7 +457,8 @@ def read_family_groups(doc, category):
             type_name=type_name(symbol), dimension_a_mm=dimension_a_mm,
             dimension_b_mm=dimension_b_mm,
             instance_refs=[elem.Id for elem in elements],
-            reinforcement_groups=reinforcement_groups)
+            reinforcement_groups=reinforcement_groups,
+            host_thickness_mm=host_thickness_mm)
         families.setdefault(family_name, []).append(type_group)
 
     return [MarkFamilyGroup(name, groups) for name, groups in families.items()]

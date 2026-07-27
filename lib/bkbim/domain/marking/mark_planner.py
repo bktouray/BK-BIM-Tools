@@ -2,13 +2,14 @@
 """Turns family groups of placed types into a flat list of (instance ref,
 mark value) assignments - the pure logic behind Auto Mark.
 
-Numbering rule: one mark per family+type, shared by every instance of that
-type (product owner: "if the family name and type is the same, they should
-have the same mark" - corrected from an earlier per-instance-unique design).
-Within a family (assigned one prefix), types are ordered largest-to-smallest
-by (dimension_a, dimension_b) and numbered 1, 2, 3... - every instance of
-type N gets that same "{prefix}{N}" value. Numbering restarts at 1 for every
-family/prefix.
+Numbering rule: one base mark per family+type/size, shared by every instance
+of that type/size. Doors/Windows split that base mark into wall-thickness
+variants when needed (product owner, 2026-07-27: "ADD A SUFFIX FOR THE
+DIFFERENT WALL THICKNESS... D2-A OR D2-B FOR DIFFERENT WALL TYPES"). Within
+a family (assigned one prefix), base groups are ordered largest-to-smallest
+by (dimension_a, dimension_b) and numbered 1, 2, 3... Numbering restarts at
+1 for every family/prefix. Host wall thickness variants inside one base
+group are ordered thickest-to-thinnest, so "-A" is always the thickest wall.
 
 MODE_SIZE_AND_REINFORCEMENT (product owner, 2026-07-14: "give me the option
 to use basic sizes only or to use size and the reinforcement simultaniously
@@ -35,21 +36,55 @@ MODE_SIZE_ONLY = u"size_only"
 MODE_SIZE_AND_REINFORCEMENT = u"size_and_reinforcement"
 
 
-def _type_sort_key(type_group):
+def _base_group_key(type_group):
+    return (
+        getattr(type_group, "base_key", None) or type_group.type_name,
+        type_group.dimension_a_mm,
+        type_group.dimension_b_mm,
+    )
+
+
+def _base_sort_key(type_group):
     # Largest to smallest - negate since sort() is ascending. None (missing
     # parameter) sorts as smallest, not largest, so it doesn't jump the queue.
     a = type_group.dimension_a_mm
     b = type_group.dimension_b_mm
     a_key = -a if a is not None else float(u"inf")
     b_key = -b if b is not None else float(u"inf")
-    return (a_key, b_key)
+    return (a_key, b_key, _base_group_key(type_group))
+
+
+def _variant_sort_key(type_group):
+    host = getattr(type_group, "host_thickness_mm", None)
+    host_key = -host if host is not None else float(u"inf")
+    return (host_key, type_group.type_name)
 
 
 def sorted_type_groups(type_groups):
     """Public so the review window can preview types in the exact order
     plan_marks() will number them in - largest to smallest.
     """
-    return sorted(type_groups, key=_type_sort_key)
+    return sorted(type_groups, key=lambda tg: (_base_sort_key(tg), _variant_sort_key(tg)))
+
+
+def sorted_type_group_clusters(type_groups):
+    """Returns sorted lists of MarkTypeGroup objects that share one base
+    number. Door/window wall-thickness variants of the same type/size live
+    in one cluster and may receive -A/-B suffixes.
+    """
+    clusters = []
+    current = []
+    current_key = None
+    for type_group in sorted_type_groups(type_groups):
+        key = _base_group_key(type_group)
+        if current and key != current_key:
+            clusters.append(current)
+            current = []
+        current_key = key
+        current.append(type_group)
+    if current:
+        clusters.append(current)
+    return clusters
 
 
 def _letter_suffix(index):
@@ -87,10 +122,23 @@ def plan_marks(family_groups, prefixes, mode=MODE_SIZE_ONLY):
         if not prefix:
             continue
 
-        n = 0
-        for type_group in sorted_type_groups(family_group.type_groups):
-            n += 1
+        for n, cluster in enumerate(sorted_type_group_clusters(family_group.type_groups), start=1):
             base_mark = u"{0}{1}".format(prefix, n)
+            has_host_variants = (
+                len(cluster) > 1 and any(getattr(tg, "host_thickness_mm", None) is not None for tg in cluster))
+            if has_host_variants:
+                for i, type_group in enumerate(cluster):
+                    mark_value = u"{0}-{1}".format(base_mark, _letter_suffix(i))
+                    for ref in type_group.instance_refs:
+                        assignments.append((ref, mark_value))
+                continue
+            if len(cluster) > 1:
+                for type_group in cluster:
+                    for ref in type_group.instance_refs:
+                        assignments.append((ref, base_mark))
+                continue
+
+            type_group = cluster[0]
 
             reinforcement_groups = (
                 type_group.reinforcement_groups if mode == MODE_SIZE_AND_REINFORCEMENT else None)

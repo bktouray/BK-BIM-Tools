@@ -29,7 +29,7 @@ from System.Windows.Media import Color, SolidColorBrush
 from pyrevit import forms
 
 from bkbim.domain.marking.mark_planner import (
-    MODE_SIZE_AND_REINFORCEMENT, MODE_SIZE_ONLY, reinforcement_sorted_groups, sorted_type_groups,
+    MODE_SIZE_AND_REINFORCEMENT, MODE_SIZE_ONLY, reinforcement_sorted_groups, sorted_type_group_clusters,
 )
 from bkbim.domain.marking.reinforcement_signature import (
     SOURCE_MODELED_REBAR, SOURCE_NAVIATE_TEXT, SOURCE_NONE, SOURCE_TEKLA_TEXT,
@@ -107,10 +107,13 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
         title = u"Auto Mark - {0}".format(category)
         self.Title = u"BK BIM Tools - {0}".format(title)
         self.TitleText.Text = title
+        sort_note = u"{0} x {1}".format(dimension_a_label, dimension_b_label)
+        if category in (u"Doors", u"Windows"):
+            sort_note = u"{0}; wall thickness variants get A/B suffixes, thickest first".format(sort_note)
         self.SubtitleText.Text = (
-            u"Give each family a prefix - types are sorted by {0} x {1}, "
-            u"largest to smallest, restarting the count at 1 per family."
-        ).format(dimension_a_label, dimension_b_label)
+            u"Give each family a prefix - types are sorted by {0}, largest "
+            u"to smallest, restarting the count at 1 per family."
+        ).format(sort_note)
 
         # Categories with no rebar concept (Doors/Windows) never show the
         # grouping-mode choice at all, rather than showing a mode with no
@@ -169,7 +172,7 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
         name_stack.Children.Add(name_block)
 
         count_block = TextBlock()
-        count_block.Text = u"{0} type(s), {1} instance(s)".format(
+        count_block.Text = u"{0} mark group(s), {1} instance(s)".format(
             len(family_group.type_groups), family_group.instance_count)
         count_block.FontSize = 11
         count_block.Foreground = text_secondary_brush
@@ -189,11 +192,11 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
         outer.Children.Add(header)
 
         type_rows = []
-        for type_group in sorted_type_groups(family_group.type_groups):
+        for cluster in sorted_type_group_clusters(family_group.type_groups):
             container = StackPanel()
             container.Margin = Thickness(0, 6, 0, 0)
             outer.Children.Add(container)
-            type_rows.append((type_group, container))
+            type_rows.append((cluster, container))
 
         border.Child = outer
 
@@ -210,20 +213,22 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
         return handler
 
     def _update_family_preview(self, family_index):
-        # One mark per type, shared by every instance of it (product owner:
-        # "if the family name and type is the same, they should have the
-        # same mark") - so the preview is a single value per row (unless
-        # size+reinforcement mode splits it into lettered sub-group rows -
-        # product owner, 2026-07-14: "add a letter suffix... B1-A and
-        # B1-B") - n counts TYPES, not instances.
+        # One base mark per type/size. Doors/Windows can split that same
+        # base mark into wall-thickness suffixes (D2-A/D2-B, thickest first);
+        # structural categories can split by reinforcement in the existing
+        # size+reinforcement mode. n counts base groups, not variants.
         row = self._family_rows[family_index]
         prefix = (row.prefix_box.Text or u"").strip()
         mode = self._current_mode()
         n = 0
-        for type_group, container in row.type_rows:
+        for cluster, container in row.type_rows:
             n += 1
             container.Children.Clear()
             base_mark = u"(no prefix - skipped)" if not prefix else u"{0}{1}".format(prefix, n)
+            type_group = cluster[0]
+            cluster_instance_count = sum(tg.instance_count for tg in cluster)
+            has_host_variants = (
+                len(cluster) > 1 and any(getattr(tg, "host_thickness_mm", None) is not None for tg in cluster))
 
             reinforcement_groups = type_group.reinforcement_groups
 
@@ -241,13 +246,31 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
 
             header_line = TextBlock()
             header_line.FontSize = 12
-            header_line.Inlines.Add(Run(u"{0}    {1} x {2} mm    {3} pcs    ".format(
+            host_thickness = getattr(type_group, "host_thickness_mm", None)
+            host_text = u""
+            if has_host_variants:
+                host_text = u"    {0} wall thicknesses".format(len(cluster))
+            elif host_thickness is not None:
+                host_text = u"    Wall {0} mm".format(_format_dim(host_thickness))
+            header_line.Inlines.Add(Run(u"{0}    {1} x {2} mm{3}    {4} pcs    ".format(
                 type_group.type_name, _format_dim(type_group.dimension_a_mm),
-                _format_dim(type_group.dimension_b_mm), type_group.instance_count)))
+                _format_dim(type_group.dimension_b_mm), host_text, cluster_instance_count)))
             header_line.Inlines.Add(_source_run(aggregate_sources))
             container.Children.Add(header_line)
 
-            if mode == MODE_SIZE_AND_REINFORCEMENT and reinforcement_groups and len(reinforcement_groups) > 1:
+            if has_host_variants:
+                for i, variant in enumerate(cluster):
+                    letter = chr(ord(u"A") + i) if i < 26 else u"?"
+                    sub_line = TextBlock()
+                    sub_line.FontSize = 11
+                    sub_line.Margin = Thickness(12, 2, 0, 0)
+                    sub_line.Foreground = self._text_secondary_brush
+                    wall_text = _format_dim(getattr(variant, "host_thickness_mm", None))
+                    mark_text = base_mark if not prefix else u"{0}-{1}".format(base_mark, letter)
+                    sub_line.Text = u"Wall {0} mm    {1} pcs    {2}".format(
+                        wall_text, variant.instance_count, mark_text)
+                    container.Children.Add(sub_line)
+            elif mode == MODE_SIZE_AND_REINFORCEMENT and reinforcement_groups and len(reinforcement_groups) > 1:
                 for i, sub_group in enumerate(reinforcement_sorted_groups(reinforcement_groups)):
                     letter = chr(ord(u"A") + i) if i < 26 else u"?"
                     sub_line = TextBlock()
