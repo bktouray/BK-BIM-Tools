@@ -43,6 +43,8 @@ from bkbim.domain.geometry.units import mm_to_ft
 
 _logger = get_logger(u"bkbim.app.auto_wall_opening_dimension")
 
+_MIN_PERIMETER_GAP_MM = 300.0
+
 
 def _exterior_centroid(walls_with_context):
     exterior = [c for c in walls_with_context if c.get(u"is_exterior")]
@@ -106,7 +108,8 @@ def run(walls_with_context, reference_provider, wall_run_reader, existing_dimens
         return Result.fail(u"No walls found to dimension.")
 
     offset_ft = mm_to_ft(standard.offset_first_mm)
-    gap_ft = mm_to_ft(standard.wall_perimeter_gap_mm)
+    gap_mm = max(float(standard.wall_perimeter_gap_mm or 0.0), _MIN_PERIMETER_GAP_MM)
+    gap_ft = mm_to_ft(gap_mm)
     centroid_x, centroid_y = _exterior_centroid(walls_with_context)
 
     created = 0

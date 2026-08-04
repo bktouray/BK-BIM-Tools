@@ -6,6 +6,7 @@ Used by both the pushbutton (interactive) and the view-activated hook
 """
 import os
 import json
+import re
 
 import clr
 clr.AddReference("RevitAPI")
@@ -14,6 +15,13 @@ from Autodesk.Revit.DB import (
     Wall, WallType, View, ViewType, Element,
     Transaction, ElementTransformUtils, TextNote, XYZ,
 )
+
+try:
+    from Autodesk.Revit.DB import HorizontalTextAlignment, TextNoteOptions, VerticalTextAlignment
+except Exception:
+    HorizontalTextAlignment = None
+    TextNoteOptions = None
+    VerticalTextAlignment = None
 
 ROW_GAP_MM = 500.0
 TEXT_GAP_MM = 300.0
@@ -149,6 +157,21 @@ def core_thickness(wt):
         return wall_width(wt)
 
 
+def wall_type_label(wt):
+    """Wall type title for the legend.
+
+    Keep the authored wall type name intact for site use. The only office
+    noise removed is the NEO_ARC_WALL prefix/token, then leftover separators
+    are normalized so the label reads cleanly.
+    """
+    raw = name_of(wt)
+    label = re.sub(r"(?i)(^|[\s_\-]+)NEO[\s_\-]*ARC[\s_\-]*WALL([\s_\-]+|$)", u" ", raw)
+    label = re.sub(r"[\s_]+", u" ", label)
+    label = re.sub(r"\s*-\s*", u" - ", label)
+    label = label.strip(u" _-")
+    return label or raw
+
+
 def _group_rank(wt):
     """ARC walls first (0), then STR walls (1), then anything else (2)."""
     n = name_of(wt).upper()
@@ -183,6 +206,33 @@ def find_components(doc, view):
                 .WhereElementIsNotElementType().ToElements())
 
 
+def _create_left_middle_text(doc, view, point, text, text_type_id):
+    note = None
+    try:
+        if TextNoteOptions is not None:
+            options = TextNoteOptions(text_type_id)
+            if HorizontalTextAlignment is not None:
+                options.HorizontalAlignment = HorizontalTextAlignment.Left
+            if VerticalTextAlignment is not None:
+                options.VerticalAlignment = VerticalTextAlignment.Middle
+            note = TextNote.Create(doc, view.Id, point, text, options)
+    except Exception:
+        note = None
+    if note is None:
+        note = TextNote.Create(doc, view.Id, point, text, text_type_id)
+    try:
+        if HorizontalTextAlignment is not None:
+            note.HorizontalAlignment = HorizontalTextAlignment.Left
+    except Exception:
+        pass
+    try:
+        if VerticalTextAlignment is not None:
+            note.VerticalAlignment = VerticalTextAlignment.Middle
+    except Exception:
+        pass
+    return note
+
+
 def _place_row(doc, view, comp_id, wall_type, target_x, top_y, label_type_id):
     comp = doc.GetElement(comp_id)
     p = comp.get_Parameter(BuiltInParameter.LEGEND_COMPONENT)
@@ -200,9 +250,11 @@ def _place_row(doc, view, comp_id, wall_type, target_x, top_y, label_type_id):
     if bb is None:
         return top_y - mm_to_ft(ROW_GAP_MM)
 
-    TextNote.Create(doc, view.Id,
-                    XYZ(bb.Max.X + mm_to_ft(TEXT_GAP_MM), bb.Max.Y, 0),
-                    name_of(wall_type), label_type_id)
+    label_y = (bb.Min.Y + bb.Max.Y) / 2.0
+    _create_left_middle_text(
+        doc, view,
+        XYZ(bb.Max.X + mm_to_ft(TEXT_GAP_MM), label_y, 0),
+        wall_type_label(wall_type), label_type_id)
     return bb.Min.Y - mm_to_ft(ROW_GAP_MM)
 
 

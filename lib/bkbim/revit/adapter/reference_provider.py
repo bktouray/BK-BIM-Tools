@@ -21,7 +21,8 @@ import clr
 
 clr.AddReference("RevitAPI")
 
-from Autodesk.Revit.DB import GeometryInstance, Line, Options, PlanarFace, Reference, Solid
+from Autodesk.Revit.DB import GeometryInstance, HostObjectUtils, Line, Options, PlanarFace, Reference, Solid, Wall
+from Autodesk.Revit.DB import ShellLayerType
 from Autodesk.Revit.DB import FamilyInstance
 
 from bkbim.domain.dimensioning.ports import IWallRunReader
@@ -32,6 +33,8 @@ from bkbim.revit.adapter.stable_representation import (
     element_id_token,
     rewrite_stable_representation_element_id,
 )
+
+_CORE_FACE_COORD_TOLERANCE_FT = 0.001  # ~0.3mm; enough for Revit numeric noise, not a finish layer
 
 
 class RevitReferenceProvider(IReferenceProvider, IWallRunReader):
@@ -62,7 +65,17 @@ class RevitReferenceProvider(IReferenceProvider, IWallRunReader):
         if len(faces) < 2:
             return None
 
+        if isinstance(element, Wall):
+            wall_faces = self._wall_core_side_faces(element, axis)
+            if wall_faces is not None:
+                return wall_faces
+
         faces.sort(key=lambda pair: pair[1])
+        if isinstance(element, Wall):
+            wall_faces = self._wall_core_faces(element, axis, faces)
+            if wall_faces is not None:
+                return wall_faces
+
         lo_ref, lo_coord = faces[0]
         hi_ref, hi_coord = faces[-1]
         return AxisFaces(ref_lo=lo_ref, ref_hi=hi_ref, coord_lo=lo_coord, coord_hi=hi_coord)
@@ -81,6 +94,172 @@ class RevitReferenceProvider(IReferenceProvider, IWallRunReader):
             elif axis == "y" and abs(n.Y) > 0.9:
                 result.append((ref, face.Origin.Y))
         return result
+
+    def _wall_core_side_faces(self, wall, axis):
+        """Use Revit's host-object core side references for compound walls.
+
+        This is preferred over scanning visible solid geometry because Revit can
+        expose finish faces as the only obvious outer solid faces in a plan view.
+        HostObjectUtils knows the compound wall's core boundaries and returns
+        dimensionable References for CoreExterior/CoreInterior when the wall
+        type supports them.
+        """
+        pairs = []
+        for shell_layer in (ShellLayerType.CoreExterior, ShellLayerType.CoreInterior):
+            try:
+                refs = HostObjectUtils.GetSideFaces(wall, shell_layer)
+            except Exception:
+                continue
+            if refs is None:
+                continue
+            for ref in refs:
+                pair = self._wall_side_face_pair_from_reference(wall, ref, axis)
+                if pair is not None:
+                    pairs.append(pair)
+
+        if len(pairs) < 2:
+            return None
+
+        pairs.sort(key=lambda pair: pair[1])
+        lo_ref, lo_coord = pairs[0]
+        hi_ref, hi_coord = pairs[-1]
+        if hi_coord - lo_coord <= 1e-9:
+            return None
+        return AxisFaces(ref_lo=lo_ref, ref_hi=hi_ref, coord_lo=lo_coord, coord_hi=hi_coord)
+
+    def _wall_side_face_pair_from_reference(self, wall, ref, axis):
+        try:
+            face = wall.GetGeometryObjectFromReference(ref)
+        except Exception:
+            return None
+        if not isinstance(face, PlanarFace):
+            return None
+        n = face.FaceNormal
+        if axis == "x" and abs(n.X) > 0.9:
+            return ref, face.Origin.X
+        if axis == "y" and abs(n.Y) > 0.9:
+            return ref, face.Origin.Y
+        return None
+
+    def _wall_core_faces(self, wall, axis, sorted_faces):
+        """Return the two core-boundary side faces for a compound wall.
+
+        The previous implementation used the outermost side faces, which are the
+        finish faces. For wall-to-wall dimensions this makes compound walls
+        dimension to plaster/render rather than the structural core. Revit still
+        needs real geometry references for NewDimension(), so we calculate where
+        the core boundaries should be, then choose the nearest references from
+        the wall's computed side-face geometry.
+
+        Falls back to None when the wall type has no usable compound core, when
+        the wall orientation is not aligned with the requested axis, or when
+        Revit did not expose enough layer-boundary faces.
+        """
+        if len(sorted_faces) < 2:
+            return None
+
+        shell_widths = self._wall_shell_widths_around_core(wall)
+        if shell_widths is None:
+            return None
+        exterior_shell, interior_shell = shell_widths
+        if exterior_shell <= 1e-9 and interior_shell <= 1e-9:
+            return None
+
+        exterior_sign = self._wall_exterior_sign_along_axis(wall, axis)
+        if exterior_sign is None:
+            return None
+
+        lo_coord = sorted_faces[0][1]
+        hi_coord = sorted_faces[-1][1]
+        if hi_coord - lo_coord <= 1e-9:
+            return None
+
+        if exterior_sign > 0:
+            core_exterior = hi_coord - exterior_shell
+            core_interior = lo_coord + interior_shell
+        else:
+            core_exterior = lo_coord + exterior_shell
+            core_interior = hi_coord - interior_shell
+
+        target_lo = min(core_exterior, core_interior)
+        target_hi = max(core_exterior, core_interior)
+        lo_pair = self._closest_face_to_coord(sorted_faces, target_lo)
+        hi_pair = self._closest_face_to_coord(sorted_faces, target_hi)
+        if lo_pair is None or hi_pair is None:
+            return None
+        if abs(lo_pair[1] - target_lo) > _CORE_FACE_COORD_TOLERANCE_FT:
+            return None
+        if abs(hi_pair[1] - target_hi) > _CORE_FACE_COORD_TOLERANCE_FT:
+            return None
+        if abs(lo_pair[1] - hi_pair[1]) <= 1e-9:
+            return None
+
+        return AxisFaces(ref_lo=lo_pair[0], ref_hi=hi_pair[0],
+                         coord_lo=lo_pair[1], coord_hi=hi_pair[1])
+
+    def _wall_shell_widths_around_core(self, wall):
+        try:
+            wall_type = wall.WallType
+            if wall_type is None:
+                return None
+            compound = wall_type.GetCompoundStructure()
+            if compound is None:
+                return None
+            first_core = int(compound.GetFirstCoreLayerIndex())
+            last_core = int(compound.GetLastCoreLayerIndex())
+            layer_count = self._compound_layer_count(compound)
+            if layer_count is None:
+                return None
+            if first_core < 0 or last_core < first_core or last_core >= layer_count:
+                return None
+
+            exterior_shell = 0.0
+            for i in range(0, first_core):
+                exterior_shell += compound.GetLayerWidth(i)
+
+            interior_shell = 0.0
+            for i in range(last_core + 1, layer_count):
+                interior_shell += compound.GetLayerWidth(i)
+
+            core_width = 0.0
+            for i in range(first_core, last_core + 1):
+                core_width += compound.GetLayerWidth(i)
+            if core_width <= 1e-9:
+                return None
+
+            return exterior_shell, interior_shell
+        except Exception:
+            return None
+
+    def _compound_layer_count(self, compound):
+        try:
+            return int(compound.LayerCount)
+        except Exception:
+            pass
+        try:
+            return int(len(compound.GetLayers()))
+        except Exception:
+            return None
+
+    def _wall_exterior_sign_along_axis(self, wall, axis):
+        try:
+            orientation = wall.Orientation
+            component = orientation.X if axis == "x" else orientation.Y
+            if abs(component) < 0.5:
+                return None
+            return 1 if component > 0 else -1
+        except Exception:
+            return None
+
+    def _closest_face_to_coord(self, sorted_faces, target_coord):
+        best = None
+        best_distance = None
+        for ref, coord in sorted_faces:
+            distance = abs(coord - target_coord)
+            if best is None or distance < best_distance:
+                best = (ref, coord)
+                best_distance = distance
+        return best
 
     def _family_faces(self, geom_instance, instance_element, axis):
         result = []

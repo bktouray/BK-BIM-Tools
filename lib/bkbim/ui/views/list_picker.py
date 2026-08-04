@@ -7,6 +7,12 @@ for one choice before a larger BK wizard/options window can continue.
 
 import os
 
+import clr
+
+clr.AddReference("PresentationCore")
+clr.AddReference("PresentationFramework")
+clr.AddReference("WindowsBase")
+
 from System.Windows import Visibility
 from System.Windows.Controls import SelectionMode
 from pyrevit import forms

@@ -5,10 +5,11 @@ __title__ = u"Generate\nSanitary Drainage"
 # __authors__ (plural) is the one this pyRevit build actually applies.
 __author__ = u"Baboucarr Katim Touray"
 __authors__ = [u"Baboucarr Katim Touray"]
-__doc__ = u"""Detects plumbing fixtures in the room(s) you pick and routes
-Sanitary Drainage pipes to a point you click. Highlights the room in green
-and the nearby wall(s) in blue so you can confirm or reselect before
-anything is created.
+__doc__ = u"""Detects plumbing fixtures in the room(s) you pick and creates
+the first pipe-only DWV collector slice: a sloped collector main toward a
+clicked stack/riser point with fixture branches projected onto a confirmed
+wall corridor. Fittings and connector joins are intentionally deferred to
+the next DWV validation pass.
 """
 
 from Autodesk.Revit.DB import FilteredElementCollector
@@ -17,7 +18,7 @@ from Autodesk.Revit.DB.Plumbing import PipeType
 from bkbim.core.tool_memory import recall, remember
 from bkbim.domain.standards.standard import load_office_standard
 from bkbim.revit.adapter.element_naming import type_name
-from bkbim.revit.adapter.mep.sanitary_drainage_flow import run_wizard
+from bkbim.revit.adapter.mep.dwv_collector_flow import run_wizard
 from bkbim.ui.views.list_picker import show_list_picker
 from bkbim.ui.views.result_dialog import show_result
 

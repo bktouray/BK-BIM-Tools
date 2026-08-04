@@ -359,6 +359,23 @@ def test_exterior_wall_strings_are_placed_progressively_further_out():
     assert by_kind[u"wall_overall"].perp_pos == -1.0 - offset_ft - 2 * gap_ft
 
 
+def test_exterior_wall_strings_do_not_stack_when_gap_setting_is_zero():
+    wall_faces = AxisFaces(ref_lo="start", ref_hi="end", coord_lo=0.0, coord_hi=20.0)
+    reader = _FakeWallRunReader(wall_faces, [])
+    writer = _FakeWriter()
+    std = Standard(name=u"Test", offset_first_mm=300.0, wall_perimeter_gap_mm=0.0, default_side=1)
+
+    _run([_wall_context(perp_lo=-1.0, perp_hi=1.0, is_exterior=True)], reader, writer,
+         _FakeFailureTracker(), std)
+
+    by_kind = dict((p.kind, p) for p in writer.written_plans)
+    offset_ft = mm_to_ft(300.0)
+    min_gap_ft = mm_to_ft(300.0)
+    assert by_kind[u"wall_run"].perp_pos == 1.0 + offset_ft
+    assert by_kind[u"wall_perpendicular_chain"].perp_pos == 1.0 + offset_ft + min_gap_ft
+    assert by_kind[u"wall_overall"].perp_pos == 1.0 + offset_ft + 2 * min_gap_ft
+
+
 def test_exterior_wall_with_crossing_splits_the_inner_string_but_chains_the_middle_one():
     wall_faces = AxisFaces(ref_lo="start", ref_hi="end", coord_lo=0.0, coord_hi=20.0)
     reader = _FakeWallRunReader(wall_faces, [])

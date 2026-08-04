@@ -86,7 +86,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="70"/>
                 </Grid.ColumnDefinitions>
-                <Slider x:Name="GapSlider" Grid.Column="0" Minimum="0" Maximum="3000"
+                <Slider x:Name="GapSlider" Grid.Column="0" Minimum="300" Maximum="3000"
                         VerticalAlignment="Center" Margin="0,0,12,0"/>
                 <TextBox x:Name="GapTextBox" Grid.Column="1" Height="26"
                          VerticalContentAlignment="Center" TextAlignment="Right"/>

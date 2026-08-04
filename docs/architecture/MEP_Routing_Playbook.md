@@ -189,16 +189,48 @@ optimize for shortest total pipe length.
 - Branches use their fixture connector diameter. The trunk diameter is an
   explicit user input because no approved sizing engine exists.
 
-## 4. Sanitary Routing Rules
+## 4. Sanitary / DWV Routing Rules
 
-Shipped, then **paused** 2026-07-10 in favor of Water Supply (ADR-0004
-update) — kept here for continuity, not because it's the current focus.
+Sanitary Drainage shipped a direct point-to-point spike, then **paused**
+2026-07-10 in favor of Water Supply (ADR-0004 update). DWV work resumed after
+the Water Supply closeout with the same vertical-slice discipline: first build
+the pure collector graph, then Revit geometry, then fittings.
 
-- Slice 1 uses `plan_direct_route` (a single straight segment per fixture,
-  slope-validated against `Standard.mep_*` EN 12056-2-shaped fields) — this
-  predates the RoutingGraph model and has **not** been migrated onto it.
-  Whether it should be is an open question for whenever Sanitary Drainage
-  resumes, not decided now.
+- The legacy pushbutton path still uses `plan_direct_route` (a single straight
+  segment per fixture, slope-validated against `Standard.mep_*`
+  EN 12056-2-shaped fields). That is now treated as prototype behavior, not
+  the target DWV engine.
+- The new DWV slice starts in
+  `lib/bkbim/domain/mep/sanitary/dwv_collector_graph.py`, pure domain only.
+  Its first topology is the product owner's bathroom practice: the WC/toilet
+  drain is the primary DN110-ish backbone to the selected stack/riser point.
+  Floor drains, sinks, shower pans and similar secondary fixtures branch into
+  that WC drain, rather than each routing directly to the stack and rather
+  than forcing the collector to follow a wall corridor.
+- Toilet/WC routing rule: start at the WC sanitary outlet, drop vertically to
+  a user-configured below-slab elevation, then turn 90 degrees and run sloped
+  to the main sanitary stack. The current Stage 2 slice creates the vertical
+  drop pipe and the sloped backbone pipe; the physical elbow is deferred to
+  the fitting pass.
+- The earlier wall-derived DWV collector remains useful as a reference/future
+  mode, but it is **not** the default bathroom routing assumption. Pipes do
+  not usually run in walls for this workflow except sink rough-ins/stubs.
+- DWV flow direction is upstream-to-downstream, ending at the stack. This is
+  intentionally the inverse of Water Supply's valve-to-furthest-fixture trunk
+  story. The collector Z is computed from the downstream stack elevation and a
+  positive slope percentage, so every collector point falls toward the stack.
+- The first slice supports fixtures on one side of the selected stack point.
+  Fixtures on both sides require a two-way collector/manifold and are rejected
+  before Revit geometry exists.
+- DWV branch junctions plan a 45-degree wye intent, never a Water Supply tee.
+  Actual Revit wye placement remains a later fitting-pass spike because office
+  fitting catalogue behavior still needs live validation.
+- `dwv_routing_plan_from_graph()` converts the collector graph into a
+  pipe-only `RoutingPlan`: collector segments first, then fixture branch
+  segments, with no fittings in the plan. The Revit adapter
+  `dwv_collector_flow.py` can create those pipes in one transaction, but this
+  pipe-only DWV adapter still requires manual/MCP validation before it is
+  called live-verified.
 - Sizing: BS EN 12056-2 shape (`Qww = K·√ΣDU`), with placeholder table values
   flagged as needing verification against the real standard — see
   MEP_SAD.md §4 and `domain/standards/standard.py`'s `mep_*` field comments.
@@ -531,6 +563,55 @@ multi-room or whole-building case actually demands it (§20) — not before.
 
 Entries here mirror durable decisions also reflected in `MEP_SAD.md`/ADRs —
 this log is the narrative, dated version; the ADRs are the formal record.
+
+### 2026-07-22 - DWV resumes with a pure sloped collector graph
+- **Reason:** Water Supply is now closed out enough to resume sanitary/DWV.
+  The existing Sanitary Drainage command still fans each fixture directly to a
+  clicked stack point, which is useful as a spike but does not represent a
+  professional DWV collector network.
+- **Alternatives considered:** wire a new Revit pushbutton immediately, or
+  reuse Water Supply's `RoutingGraph` branch shape directly. Immediate Revit
+  work would repeat the old fitting/rollback debugging pain before the
+  topology is proven. Reusing Water Supply's graph blindly would import
+  pressure-water assumptions into a gravity system.
+- **Decision:** add `dwv_collector_graph.py` as pure domain logic first: one
+  sloped collector main draining to a selected stack, fixture outlets
+  projected onto a collector corridor, and 45-degree wye fitting intents at
+  branch junctions. The follow-up product-owner correction makes the default
+  bathroom corridor the WC/toilet drain backbone, not a wall corridor. Add
+  `dwv_collector_flow.py` as the first Revit adapter seam for creating those
+  graph-derived pipe segments only.
+- **Trade-offs:** this duplicates a little corridor math around the existing
+  `RoutingCorridor` instead of forcing a new universal graph abstraction.
+  That is intentional under ADR-0002: extract shared infrastructure only once
+  DWV and Water Supply prove the same behavior is genuinely reusable.
+- **Future implications:** the next DWV slice should convert this graph to
+  pipe geometry without fittings, then add a separate wye/elbow fitting pass
+  after live Revit validation of the office sanitary fitting catalogue.
+
+### 2026-07-22 - Bathroom DWV defaults to WC drain backbone, not wall corridor
+- **Reason:** product-owner feedback clarified the real installation method:
+  bathroom DWV is not normally run through walls except sink rough-ins/stubs.
+  The toilet/WC has a 110mm drain to the main sanitary stack; floor drains,
+  sinks, shower pans and similar secondary fixtures connect into that WC drain
+  or into a nearby secondary branch that ultimately joins the WC drain.
+- **Alternatives considered:** continue with the wall-corridor collector
+  model created at the start of the DWV slice. Rejected as the default because
+  it encodes a routing habit the product owner does not actually use for most
+  bathroom drainage.
+- **Decision:** add WC-backbone planning to `dwv_collector_graph.py` and wire
+  the interactive Sanitary Drainage button to that topology for the pipe-only
+  Stage 2 slice. Exactly one selected WC is required; other selected sanitary
+  outlets project into the WC drain backbone. The WC connector first drops to
+  a configured below-slab elevation, then the backbone slopes from that drop
+  point to the stack.
+- **Trade-offs:** close-fixture chaining (e.g. floor drain + shower pan first,
+  then into WC drain) is not automatic yet. The first version branches each
+  secondary fixture into the WC backbone directly so the main topology can be
+  validated in Revit before adding clustering rules.
+- **Future implications:** after the WC-backbone pipe geometry is validated,
+  add a secondary-fixture grouping pass with explicit distance/priority rules
+  and then implement wyes/elbows/connector joins.
 
 ### 2026-07-18 - Water Supply consolidates routing prompts into one branded settings window
 - **Reason:** interactive testing showed the command had become too
