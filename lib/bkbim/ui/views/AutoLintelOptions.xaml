@@ -1,0 +1,132 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BK BIM Tools - Auto Lintels"
+    Width="460"
+    SizeToContent="Height"
+    MinWidth="420" MinHeight="520"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResizeWithGrip"
+    Background="{StaticResource Surface.Base}"
+    FontFamily="Segoe UI">
+
+    <!-- Branded replacement for Auto Lintels' pyRevit prompt chain:
+         scope, family, material, lintel height and side bearing in one
+         options window. Shared brushes come from ui/themes/Tokens.xaml. -->
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="Caption">
+            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,0,0,4"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Surface.Raised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="{StaticResource Brand.Primary}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="BK BIM TOOLS" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+            <TextBlock Text="Auto Lintels" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text.Primary}" Margin="0,2,0,4"/>
+            <TextBlock x:Name="SubtitleText" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Separator Grid.Row="1" Margin="0,16,0,16"/>
+
+        <StackPanel Grid.Row="2">
+            <Label Content="Openings"/>
+            <RadioButton x:Name="ActiveViewRadio" Content="Active view doors and windows" GroupName="ScopeMode"/>
+            <RadioButton x:Name="WholeModelRadio" Content="Whole model doors and windows" GroupName="ScopeMode"/>
+            <RadioButton x:Name="ManualRadio" Content="Manually select doors and windows" GroupName="ScopeMode"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <Label Content="Base beam family"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="FamilyText" Grid.Column="0" Text="No beam family chosen yet"
+                           VerticalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{StaticResource Text.Primary}"/>
+                <Button x:Name="ChooseFamilyButton" Grid.Column="1" Content="Choose..." Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"/>
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <Label Content="Structural material"/>
+            <ComboBox x:Name="MaterialCombo" Height="28"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="5" Margin="0,16,0,0">
+            <Label Content="Lintel height (mm)"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="HeightSlider" Grid.Column="0" Minimum="25" Maximum="1000"
+                        VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBox x:Name="HeightTextBox" Grid.Column="1" Height="26"
+                         VerticalContentAlignment="Center" TextAlignment="Right"/>
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Grid.Row="6" Margin="0,12,0,0">
+            <Label Content="Bearing each side of opening (mm)"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="BearingSlider" Grid.Column="0" Minimum="0" Maximum="1000"
+                        VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBox x:Name="BearingTextBox" Grid.Column="1" Height="26"
+                         VerticalContentAlignment="Center" TextAlignment="Right"/>
+            </Grid>
+        </StackPanel>
+
+        <TextBlock x:Name="ValidationText" Grid.Row="7" Style="{StaticResource Caption}"
+                   TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed"/>
+
+        <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" Style="{StaticResource SecondaryButton}" Margin="0"/>
+            <Button x:Name="RunButton" Content="Run" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>

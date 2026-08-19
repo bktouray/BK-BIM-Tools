@@ -14,6 +14,10 @@ title: Structural
 # large buttons" over a pulldown or icon-only stack once shown that
 # trade-off. More structural modeling tools land here later (Cover,
 # Material, ...) - product owner, 2026-07-14.
+# AutoLintels generates structural framing lintels over wall-hosted
+# doors/windows, sizing each lintel type from the host wall core width and
+# user-entered height while the instance span follows opening width +
+# bearings.
 # Sixth: Mark Colors (colors Columns/Beams by Mark using real View Filters
 # - pastel color + transparency + configurable line weight/type per Mark,
 # applied to picked views or a view template; requires Auto Mark to have
@@ -23,6 +27,7 @@ title: Structural
 layout:
   - FloorsToFootings
   - PCCBlinding
+  - AutoLintels
   - TypicalColumns
   - TypicalBeams
   - TypicalFootings
