@@ -3,8 +3,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="BK BIM Tools - Wall &amp; Opening Dimensions"
     Width="460"
-    SizeToContent="Height"
-    MinWidth="400" MinHeight="360"
+    Height="640"
+    MinWidth="400" MinHeight="500"
     WindowStartupLocation="CenterScreen"
     ResizeMode="CanResizeWithGrip"
     Background="{StaticResource Surface.Base}"
@@ -34,7 +34,6 @@
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -94,19 +93,20 @@
         </StackPanel>
 
         <!-- Wall types to use for dimensions -->
-        <StackPanel Grid.Row="5" Margin="0,12,0,0">
-            <Label Content="Wall types to dimension"/>
-            <TextBlock Text="Modeling each layer as its own wall? Pick only the structural/core type(s) here - other layers (plaster, tile, ...) are ignored entirely, including as crossing walls."
+        <Grid Grid.Row="5" Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Label Grid.Row="0" Content="Wall types to dimension"/>
+            <TextBlock Grid.Row="1" Text="Modeling each layer as its own wall? Pick only the structural/core type(s) here - other layers (plaster, tile, ...) are ignored entirely, including as crossing walls."
                        Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-            <ListBox x:Name="WallTypesList" Height="110" SelectionMode="Extended"/>
-        </StackPanel>
-
-        <!-- Row 6 ("*") intentionally empty: absorbs extra vertical space so the
-             footer stays anchored near the bottom instead of floating mid-window
-             when the user resizes taller. -->
+            <ListBox x:Name="WallTypesList" Grid.Row="2" MinHeight="110" SelectionMode="Extended"/>
+        </Grid>
 
         <!-- Footer -->
-        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"/>
             <Button x:Name="RunButton" Content="Run" IsDefault="True"
                     Background="{StaticResource Brand.Primary}" Foreground="White" BorderThickness="0"/>

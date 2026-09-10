@@ -11,7 +11,7 @@ import os
 
 from pyrevit import forms
 
-from System.Windows import Visibility
+from System.Windows import GridLength, GridUnitType, Visibility
 
 from bkbim.ui.tokens import resolve_tokens_path
 from bkbim.ui.views.listbox_drag_select import enable_drag_multiselect
@@ -97,10 +97,18 @@ class WallLegendOptionsWindow(forms.WPFWindow):
         return 0 if items else -1
 
     def _update_source_panels(self):
+        show_view_picker = bool(self.ViewSourceRadio.IsChecked)
+        show_wall_type_picker = bool(self.ListSourceRadio.IsChecked)
+
         self.ViewPickerPanel.Visibility = (
-            Visibility.Visible if self.ViewSourceRadio.IsChecked else Visibility.Collapsed)
+            Visibility.Visible if show_view_picker else Visibility.Collapsed)
         self.WallTypePickerPanel.Visibility = (
-            Visibility.Visible if self.ListSourceRadio.IsChecked else Visibility.Collapsed)
+            Visibility.Visible if show_wall_type_picker else Visibility.Collapsed)
+        self.SourceDetailRow.Height = (
+            GridLength(1, GridUnitType.Star)
+            if show_view_picker or show_wall_type_picker
+            else GridLength(0)
+        )
 
     def _on_source_changed(self, sender, args):
         self._update_source_panels()

@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""A grid's position and orientation for the Renumber Grids utility (product
-owner: "Vertical Grids use A-Z then AA, AB and so forth. Horizontal Grids use
-numbers from 1, renumbering start from the furthest left and top grid.").
+"""A grid's position and orientation for the Renumber Grids utility.
 
 Pure domain data + logic (ADR-0001) - `ref` is an opaque handle the Revit
 adapter attaches and reads back, same convention as GridInfo/GridExtentInfo.
@@ -10,6 +8,9 @@ bkbim.domain.models.grid_info rather than redefining it.
 """
 
 from bkbim.domain.models.grid_info import ORIENTATION_HORIZONTAL, ORIENTATION_VERTICAL
+
+SCHEME_LETTERS_LEFT_NUMBERS_TOP = u"letters_left_numbers_top"
+SCHEME_LETTERS_TOP_NUMBERS_LEFT = u"letters_top_numbers_left"
 
 
 class GridPositionInfo(object):
@@ -41,22 +42,38 @@ def letter_name(index):
     return result
 
 
-def plan_renumber(grids):
-    """Computes the new name for every classifiable grid in `grids`.
+def _verticals_left_to_right(grids):
+    return sorted((g for g in grids if g.orientation == ORIENTATION_VERTICAL), key=lambda g: g.coord)
 
-    Vertical grids (letters) are ordered left to right (`coord` ascending -
-    lower X is further left) starting at A. Horizontal grids (numbers) are
-    ordered top to bottom (`coord` descending - higher Y is further up/top)
-    starting at 1 - "renumbering start from the furthest left and top grid."
 
-    :param grids: list[GridPositionInfo]
-    :rtype: list[(ref, new_name)]
-    """
-    verticals = sorted(
-        (g for g in grids if g.orientation == ORIENTATION_VERTICAL), key=lambda g: g.coord)
-    horizontals = sorted(
+def _horizontals_top_to_bottom(grids):
+    return sorted(
         (g for g in grids if g.orientation == ORIENTATION_HORIZONTAL),
         key=lambda g: g.coord, reverse=True)
+
+
+def plan_renumber(grids, scheme=SCHEME_LETTERS_LEFT_NUMBERS_TOP):
+    """Computes the new name for every classifiable grid in `grids`.
+
+    Default scheme:
+    - vertical grid lines get letters, left to right (`coord` ascending)
+    - horizontal grid lines get numbers, top to bottom (`coord` descending)
+
+    Alternate scheme:
+    - horizontal grid lines get letters, top to bottom
+    - vertical grid lines get numbers, left to right
+
+    :param grids: list[GridPositionInfo]
+    :param scheme: one of SCHEME_*
+    :rtype: list[(ref, new_name)]
+    """
+    verticals = _verticals_left_to_right(grids)
+    horizontals = _horizontals_top_to_bottom(grids)
+
+    if scheme == SCHEME_LETTERS_TOP_NUMBERS_LEFT:
+        plan = [(g.ref, letter_name(i)) for i, g in enumerate(horizontals)]
+        plan.extend((g.ref, u"{0}".format(i + 1)) for i, g in enumerate(verticals))
+        return plan
 
     plan = [(g.ref, letter_name(i)) for i, g in enumerate(verticals)]
     plan.extend((g.ref, u"{0}".format(i + 1)) for i, g in enumerate(horizontals))

@@ -28,15 +28,20 @@ from bkbim.app.commands import auto_mark_command
 from bkbim.core.settings import LAYER_USER, get_settings
 from bkbim.domain.marking.mark_planner import MODE_SIZE_ONLY
 from bkbim.revit.adapter.mark_type_reader import (
-    CATEGORIES, DIMENSION_A_LABEL, DIMENSION_B_LABEL, category_supports_reinforcement, read_family_groups,
+    CATEGORIES, CATEGORY_DOORS, CATEGORY_WINDOWS, DIMENSION_A_LABEL, DIMENSION_B_LABEL,
+    category_supports_reinforcement, read_family_groups,
 )
 from bkbim.revit.adapter.mark_writer import RevitMarkWriter
 from bkbim.ui.views.auto_mark_options import show_auto_mark_options
 from bkbim.ui.views.category_picker import show_category_picker
+from bkbim.ui.views.list_picker import show_list_picker
 
 _TRANSACTION_LABEL = u"Auto Mark"
 _SETTINGS_KEY = u"auto_mark.prefixes"
 _SETTINGS_KEY_MODE = u"auto_mark.mode"
+_SETTINGS_KEY_HOST_THICKNESS = u"auto_mark.host_thickness"
+_HOST_THICKNESS_SPLIT_LABEL = u"Separate by wall thickness (D2-A, D2-B)"
+_HOST_THICKNESS_IGNORE_LABEL = u"Ignore wall thickness (same type gets same mark)"
 
 
 def _settings_path():
@@ -84,6 +89,48 @@ def _remember_mode(category, mode):
         pass
 
 
+def _category_can_split_by_host_thickness(category):
+    return category in (CATEGORY_DOORS, CATEGORY_WINDOWS)
+
+
+def _load_remembered_host_thickness_enabled(category):
+    settings = get_settings()
+    settings.load_layer_from_json(LAYER_USER, _settings_path())
+    values = settings.get(_SETTINGS_KEY_HOST_THICKNESS) or {}
+    return bool(values.get(category, True))
+
+
+def _remember_host_thickness_enabled(category, enabled):
+    settings = get_settings()
+    values = dict(settings.get(_SETTINGS_KEY_HOST_THICKNESS) or {})
+    values[category] = bool(enabled)
+    settings.set(_SETTINGS_KEY_HOST_THICKNESS, values, layer=LAYER_USER)
+    try:
+        settings.save_layer_to_json(LAYER_USER, _settings_path())
+    except Exception:
+        pass
+
+
+def _choose_host_thickness_mode(category):
+    if not _category_can_split_by_host_thickness(category):
+        return None, False
+
+    default_label = (
+        _HOST_THICKNESS_SPLIT_LABEL if _load_remembered_host_thickness_enabled(category)
+        else _HOST_THICKNESS_IGNORE_LABEL)
+    picked = show_list_picker(
+        u"Auto Mark - {0}".format(category),
+        u"Choose whether host wall thickness should create A/B suffixes.",
+        [_HOST_THICKNESS_SPLIT_LABEL, _HOST_THICKNESS_IGNORE_LABEL],
+        default_label=default_label)
+    if picked is None:
+        return None, True
+
+    enabled = picked == _HOST_THICKNESS_SPLIT_LABEL
+    _remember_host_thickness_enabled(category, enabled)
+    return enabled, False
+
+
 def choose_category():
     """Shows the branded category picker. Returns one of
     mark_type_reader.CATEGORIES, or None if the user cancelled.
@@ -99,7 +146,12 @@ def run_auto_mark_flow(doc, category, title):
     result is None (and message is None) if the user cancelled at either
     step, or if there was nothing to read for this category.
     """
-    family_groups = read_family_groups(doc, category)
+    split_by_host_thickness, cancelled = _choose_host_thickness_mode(category)
+    if cancelled:
+        return None, None
+
+    family_groups = read_family_groups(
+        doc, category, split_by_host_thickness=split_by_host_thickness)
     if not family_groups:
         return None, u"No {0} found in the model.".format(category.lower())
 

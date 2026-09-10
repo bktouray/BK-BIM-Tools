@@ -108,7 +108,10 @@ class AutoMarkOptionsWindow(forms.WPFWindow):
         self.Title = u"BK BIM Tools - {0}".format(title)
         self.TitleText.Text = title
         sort_note = u"{0} x {1}".format(dimension_a_label, dimension_b_label)
-        if category in (u"Doors", u"Windows"):
+        has_host_wall_variants = any(
+            getattr(tg, "host_thickness_mm", None) is not None
+            for fg in family_groups for tg in fg.type_groups)
+        if category in (u"Doors", u"Windows") and has_host_wall_variants:
             sort_note = u"{0}; wall thickness variants get A/B suffixes, thickest first".format(sort_note)
         self.SubtitleText.Text = (
             u"Give each family a prefix - types are sorted by {0}, largest "

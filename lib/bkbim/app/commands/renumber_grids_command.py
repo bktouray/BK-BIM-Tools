@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Renumbers every straight grid in the model, per product owner: "Vertical
-Grids use A-Z then AA, AB and so forth. Horizontal Grids use numbers from 1,
-renumbering start from the furthest left and top grid."
+"""Renumbers every straight grid in the model.
 
 Zero Autodesk.Revit imports (ADR-0001) - unit-testable with fakes, same
 pattern as the other app commands.
@@ -14,7 +12,7 @@ from bkbim.domain.models.grid_position import plan_renumber
 _logger = get_logger(u"bkbim.app.renumber_grids")
 
 
-def run(grids, writer):
+def run(grids, writer, scheme=None):
     """Renumbers `grids` per the plan from `plan_renumber`.
 
     Revit enforces unique grid names at all times, so applying final names
@@ -26,12 +24,13 @@ def run(grids, writer):
 
     :param grids: list[bkbim.domain.models.grid_position.GridPositionInfo]
     :param writer: bkbim.domain.grids.ports.IGridRenumberWriter
+    :param scheme: optional bkbim.domain.models.grid_position.SCHEME_* value
     :rtype: bkbim.core.result.Result wrapping {"renamed": int, "failed": int}
     """
     if not grids:
         return Result.fail(u"No grids found in this project.")
 
-    plan = plan_renumber(grids)
+    plan = plan_renumber(grids, scheme=scheme)
     if not plan:
         return Result.fail(
             u"No vertical or horizontal grids found to renumber "

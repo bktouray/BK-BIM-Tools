@@ -17,3 +17,7 @@ Thumbs.db
 # Editors
 .vscode/
 .idea/
+
+# Scratch output (draft PDFs/renders from doc-generation tools, not source)
+/output/
+/tmp/

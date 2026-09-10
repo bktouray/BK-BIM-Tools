@@ -4,7 +4,7 @@ pattern as test_toggle_grid_extent_command.py (SAD Sec 6).
 """
 from bkbim.app.commands import renumber_grids_command
 from bkbim.domain.models.grid_info import ORIENTATION_HORIZONTAL, ORIENTATION_VERTICAL
-from bkbim.domain.models.grid_position import GridPositionInfo
+from bkbim.domain.models.grid_position import SCHEME_LETTERS_TOP_NUMBERS_LEFT, GridPositionInfo
 
 
 class _FakeWriter(object):
@@ -48,6 +48,20 @@ def test_renumbers_vertical_and_horizontal_grids():
     assert result.value["renamed"] == 3
     assert result.value["failed"] == 0
     assert writer._current_names == {"V1": "A", "V2": "B", "H1": "1"}
+
+
+def test_renumbers_with_swapped_letter_and_number_directions():
+    grids = [
+        GridPositionInfo(ref="V1", orientation=ORIENTATION_VERTICAL, coord=0.0),
+        GridPositionInfo(ref="V2", orientation=ORIENTATION_VERTICAL, coord=10.0),
+        GridPositionInfo(ref="H1", orientation=ORIENTATION_HORIZONTAL, coord=10.0),
+        GridPositionInfo(ref="H2", orientation=ORIENTATION_HORIZONTAL, coord=0.0),
+    ]
+    writer = _FakeWriter()
+    result = renumber_grids_command.run(grids, writer, scheme=SCHEME_LETTERS_TOP_NUMBERS_LEFT)
+
+    assert result.success
+    assert writer._current_names == {"H1": "A", "H2": "B", "V1": "1", "V2": "2"}
 
 
 def test_swapping_two_grid_names_does_not_collide():

@@ -387,12 +387,16 @@ def _is_pcc_blinding_pad(symbol):
         return False
 
 
-def read_family_groups(doc, category):
+def read_family_groups(doc, category, split_by_host_thickness=None):
     """Every family+type of `category` with at least one placed instance,
     grouped as MarkFamilyGroup -> MarkTypeGroup, each holding the ElementIds
     of every instance of that type (every one of which will get the same
     mark - see mark_planner.py).
 
+    :param split_by_host_thickness: for Doors/Windows, True keeps the current
+        A/B wall-thickness variants; False restores legacy same-type/same-size
+        marking regardless of host wall thickness. None uses the category
+        default.
     :rtype: list of bkbim.domain.models.mark_family_group.MarkFamilyGroup
     """
     dimension_reader = _DIMENSION_READERS[category]
@@ -402,7 +406,10 @@ def read_family_groups(doc, category):
     # footing, needlessly expensive at real model scale.
     rebar_by_host = _build_rebar_by_host(doc) if reinforcement_reader is not None else {}
 
-    split_by_host_thickness = _uses_host_wall_thickness(category)
+    if split_by_host_thickness is None:
+        split_by_host_thickness = _uses_host_wall_thickness(category)
+    else:
+        split_by_host_thickness = bool(split_by_host_thickness) and _uses_host_wall_thickness(category)
     elements_by_group_key = {}
     symbol_by_group_key = {}
     host_thickness_by_group_key = {}

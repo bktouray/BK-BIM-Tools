@@ -3,8 +3,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="BK BIM Tools - Slab Dimensions"
     Width="460"
-    SizeToContent="Height"
-    MinWidth="400" MinHeight="380"
+    Height="560"
+    MinWidth="400" MinHeight="460"
     WindowStartupLocation="CenterScreen"
     ResizeMode="CanResizeWithGrip"
     Background="{StaticResource Surface.Base}"
@@ -85,16 +85,17 @@
         </StackPanel>
 
         <!-- Slab types to dimension -->
-        <StackPanel Grid.Row="5" Margin="0,12,0,0">
-            <Label Content="Types to dimension"/>
-            <TextBlock Text="Floor/slab types visible in the view - narrow this down to just the type(s) you want dimensioned."
+        <Grid Grid.Row="5" Margin="0,12,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Label Grid.Row="0" Content="Types to dimension"/>
+            <TextBlock Grid.Row="1" Text="Floor/slab types visible in the view - narrow this down to just the type(s) you want dimensioned."
                        Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-            <ListBox x:Name="StructuralTypesList" Height="110" SelectionMode="Extended"/>
-        </StackPanel>
-
-        <!-- Row 5 ("*") intentionally empty: absorbs extra vertical space so the
-             footer stays anchored near the bottom instead of floating mid-window
-             when the user resizes taller. -->
+            <ListBox x:Name="StructuralTypesList" Grid.Row="2" MinHeight="110" SelectionMode="Extended"/>
+        </Grid>
 
         <!-- Footer -->
         <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
